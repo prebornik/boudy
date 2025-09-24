@@ -22,12 +22,10 @@ jobs:
           bundler-cache: true
 
       - name: Install gems
-        working-directory: ./boudy
         run: bundle install --without development
 
       - name: Build site
-        working-directory: ./boudy
-        run: bundle exec jekyll build --destination ../_site
+        run: bundle exec jekyll build --destination ./_site
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
