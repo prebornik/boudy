@@ -2,7 +2,7 @@ name: Build & Deploy Jekyll (GitHub Pages)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 permissions:
@@ -28,24 +28,22 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
-          bundler-cache: false
+          bundler-cache: true   # 🟢 rychlejší instalace gemů
 
-      # 🔎 DEBUG: ukaž co v repu opravdu je
+      # (volitelně) zkontroluj, že je Gemfile opravdu v rootu
       - name: Debug workspace
         run: |
           echo "PWD:"; pwd
           echo "--- ROOT ---"; ls -la
-          echo "--- BOUDY ---"; ls -la boudy || true
+          test -f Gemfile && echo "Gemfile OK" || (echo "Gemfile chybí v rootu!" && exit 1)
 
       - name: Install gems
-        working-directory: boudy
-        run: bundle install
+        run: bundle install --jobs 4 --retry 3
 
       - name: Build with Jekyll
-        working-directory: boudy
         env:
           JEKYLL_ENV: production
-        run: bundle exec jekyll build --destination ../_site
+        run: bundle exec jekyll build --destination _site
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
