@@ -1,0 +1,4 @@
+url: "https://prebornik.github.io"
+baseurl: "/boudy"
+plugins:
+  - jekyll-sitemap
