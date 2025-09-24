@@ -21,17 +21,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Nastaví GitHub Pages prostředí (doporučený krok)
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      # DŮLEŽITÉ: working-directory je na úrovni kroku (ne v `with:`)
       - name: Setup Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
           bundler-cache: true
-        working-directory: boudy
+        env:
+          # Důležité: Gemfile máš ve složce boudy/
+          BUNDLE_GEMFILE: boudy/Gemfile
 
       - name: Install gems
         working-directory: boudy
