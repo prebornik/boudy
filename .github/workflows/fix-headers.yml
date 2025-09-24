@@ -3,7 +3,10 @@ name: Deploy with correct headers
 on:
   push:
     branches:
-      - main  # nebo master, podle toho, co používáš
+      - main
+
+permissions:
+  contents: write
 
 jobs:
   deploy:
@@ -12,11 +15,18 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Build site with Jekyll
-        uses: actions/jekyll-build-pages@v1
+      - name: Setup Ruby for Jekyll
+        uses: ruby/setup-ruby@v1
         with:
-          source: ./boudy
-          destination: ./_site
+          ruby-version: '3.1'
+
+      - name: Install Jekyll and Bundler
+        run: |
+          gem install bundler jekyll
+
+      - name: Build site with Jekyll
+        run: |
+          jekyll build --source ./boudy --destination ./_site
 
       - name: Add headers file
         run: |
@@ -27,3 +37,4 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
