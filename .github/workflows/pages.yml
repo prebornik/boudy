@@ -28,10 +28,14 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.1'
-          bundler-cache: true
-        env:
-          # Důležité: Gemfile máš ve složce boudy/
-          BUNDLE_GEMFILE: boudy/Gemfile
+          bundler-cache: false
+
+      # 🔎 DEBUG: ukaž co v repu opravdu je
+      - name: Debug workspace
+        run: |
+          echo "PWD:"; pwd
+          echo "--- ROOT ---"; ls -la
+          echo "--- BOUDY ---"; ls -la boudy || true
 
       - name: Install gems
         working-directory: boudy
