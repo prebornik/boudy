@@ -2,7 +2,7 @@
 
 <html lang="cs">
 <head>
-  
+<meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
 <style>
 table {
   width: 100%;
@@ -85,9 +85,82 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     }
 
   </style>
-</head>
+<style>
+    .btn-home {
+      display: inline-block;
+      padding: 8px 14px;
+      background-color: rgb(35, 159, 97);
+      color: rgb(248, 234, 125);
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    .btn-home:hover { background-color: rgb(21, 130, 65); }
+    .top-actions { margin: 8px 0 12px; text-align: left; }
+    @media (max-width: 768px) {
+      .top-actions { margin: 6px 0 10px; }
+      .btn-home { width: auto; }
+    }
+  </style>
+<style>
+  /* Mobilní Varianta A: Pořadí, Jméno, Trať, Čas, Rok viditelné; skryj Tým a Kategorie */
+  @media (min-width: 769px) { .only-mobile { display: none !important; } }
+  @media (max-width: 768px) { .only-mobile { display: inline-block; } }
+  @media (max-width: 768px) {
+    #resultsTable th:nth-child(3),
+    #resultsTable td:nth-child(3),
+    #resultsTable th:nth-child(5),
+    #resultsTable td:nth-child(5) { display: none; }
+    #resultsTable td:nth-child(2) { white-space: normal; }
+    #resultsTable { min-width: auto; }
+  }
+  @media (max-width: 768px) {
+    body.show-all-cols #resultsTable th,
+    body.show-all-cols #resultsTable td { display: table-cell !important; }
+    body.show-all-cols #resultsTable { min-width: 680px; }
+  }
+  </style>
+<style id="mobile-columns-override">
+  /* Override pro přepínač – zobraz VŠE na mobilech */
+  @media (max-width: 768px){
+    /* vrátí všechny th/td včetně Tým(3) a Kategorie(5) */
+    body.show-all-cols #resultsTable th,
+    body.show-all-cols #resultsTable td { display: table-cell !important; }
+
+    /* vrátí horizontální posuv, když jsou všechny sloupce vidět */
+    body.show-all-cols #resultsTable { min-width: 680px; }
+  }
+</style>
+<style>
+#vysledky th, #resultsTable th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #e0e0e0;
+}
+@media (max-width: 800px) {
+  #vysledky th, #resultsTable th {
+    font-size: 13px;
+    padding: 6px 4px;
+  }
+}
+</style><style id="mobile-showall-sticky">
+@media (max-width: 768px) {
+  /* Aktivní jen v režimu "Zobrazit všechny sloupce" */
+  body.show-all-cols #resultsWrapper {
+    max-height: 75vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.show-all-cols #resultsTable { border-collapse: separate; border-spacing: 0; }
+  body.show-all-cols #resultsTable thead th {
+    position: sticky; top: 0; z-index: 5; background: #e0e0e0;
+  }
+}
+</style></head>
 <body>
 <h2>Výsledky závodu</h2>
+<div class="top-actions" style="display:flex;justify-content:center;align-items:center;gap:10px;"><a class="btn-home" href="index.html" style="margin:auto;font-size:18px;">Hlavní stránka</a></div>
 <div id="filters">
 <label for="category">Kategorie:</label>
 <select id="category"><option selected="selected" value="">Vše</option><option value="batolata-holky">batolata-holky</option><option value="batolata-kluci">batolata-kluci</option><option value="mlaďáci-holky">mlaďáci-holky</option><option value="mlaďáci-kluci">mlaďáci-kluci</option><option value="prťata-holky">prťata-holky</option><option value="prťata-kluci">prťata-kluci</option><option value="dorostenci">dorostenci</option><option value="dorostenky">dorostenky</option><option value="juniorky">juniorky</option><option value="muži">muži</option><option value="muži 40+">muži 40+</option><option value="Žádná ktegorie">Žádná ktegorie</option><option value="ženy">ženy</option><option value="ženy 40+">ženy 40+</option><option value="žáci">žáci</option><option value="žákyně">žákyně</option></select>
@@ -105,16 +178,18 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <button onclick="exportTableToExcel('resultsTable')">Export do Excelu</button>
 <button onclick="exportTableToPDF('resultsTable')">Export do PDF</button>
 </div>
-<table id="resultsTable">
+<button class="only-mobile" id="toggleCols" type="button">Zobrazit všechny sloupce</button>
+<div style="height:6px"></div>
+<div id="resultsWrapper"><table id="resultsTable">
 <thead>
 <tr>
-<th>Pořadí</th>
-<th>Jméno</th>
-<th>Tým</th>
-<th>Trať</th>
-<th>Kategorie</th>
-<th>Čas</th>
-<th>Rok</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Pořadí</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Jméno</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Tým</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Trať</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Kategorie</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Čas</th>
+<th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Rok</th>
 </tr>
 </thead>
 <tbody>
@@ -279,10 +354,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <tr><td></td><td>Tomáš Bogar</td><td></td><td>50 m </td><td>batolata-kluci</td><td>0:36</td><td>2022</td></tr>
 <tr><td></td><td>Matyáš Petržela</td><td>Citlivá otázka</td><td>50 m </td><td>batolata-kluci</td><td>1:35</td><td>2022</td></tr>
 <tr><td></td><td>Emílie Staňková</td><td>Tj Sokol Ruprechtice</td><td>50 m </td><td>batolata-holky</td><td>1:38</td><td>2022</td></tr>
-</table>
-</tbody>
-</table>
-
+</tbody></table></div>
 <script>
 
 (function cleanupBackslashes(){
@@ -578,7 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 // === Konec cleaned scripts ===
 </script>
-
 <script>
 // === Back-To-Top button (bez zásahu do HTML) ===
 (function initBackToTop(){
@@ -626,13 +697,11 @@ document.addEventListener('DOMContentLoaded', () => {
   onScroll();
 })();
 </script>
-
 <!-- Knihovna pro Excel (XLSX) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"</script>
+<script <="" script="" src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
 
 <!-- Knihovna pro PDF (html2pdf = html2canvas + jsPDF) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"</script>
-
 <script>
 /**
  * Export tabulky do Excelu (.xlsx)
@@ -681,11 +750,67 @@ function exportTableToPDF(tableID, filename = 'vysledky.pdf') {
   html2pdf().set(opt).from(element).save();
 }
 </script>
-
 <!-- (Volitelné) příjemnější zalamování při exportu PDF -->
 <style>
   #resultsTable tr { page-break-inside: avoid; break-inside: avoid; }
 </style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var btn = document.getElementById('toggleCols');
+  if (!btn) return;
 
-</body>
+  function updateText() {
+    btn.textContent = document.body.classList.contains('show-all-cols')
+      ? 'Zobrazit méně sloupců'
+      : 'Zobrazit všechny sloupce';
+  }
+
+  btn.addEventListener('click', function () {
+    document.body.classList.toggle('show-all-cols');
+    updateText();
+  });
+
+  updateText();
+});
+</script>
+<script id="backtotop-mobile-scroll-patch">
+(function(){
+  const btn = document.getElementById('backToTop');
+  if(!btn) return;
+  const SHOW_AFTER = 200;
+  const wrap = document.getElementById('resultsWrapper');
+  const toggle = document.getElementById('toggleCols');
+  const mq = window.matchMedia('(max-width: 768px)');
+
+  function isMobile(){ return mq.matches; }
+  function scroller(){
+    return (isMobile() && document.body.classList.contains('show-all-cols') && wrap) ? wrap : window;
+  }
+  function currentY(src){ return (src===window) ? (window.scrollY||0) : src.scrollTop; }
+  function onScroll(){
+    const src = scroller();
+    const y = currentY(src);
+    if (y > SHOW_AFTER) btn.classList.add('show'); else btn.classList.remove('show');
+  }
+
+  // Listen to both window and wrapper; our handler sets final state
+  window.addEventListener('scroll', onScroll, {passive:true});
+  if (wrap) wrap.addEventListener('scroll', onScroll, {passive:true});
+  mq.addEventListener ? mq.addEventListener('change', onScroll) : mq.addListener(onScroll);
+
+  // Override click in capture phase to prevent previous listeners when inner scroller is active
+  btn.addEventListener('click', function(ev){
+    const src = scroller();
+    if (src !== window) {
+      ev.preventDefault(); ev.stopImmediatePropagation();
+      src.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, {capture:true});
+
+  if (toggle) toggle.addEventListener('click', function(){ setTimeout(onScroll, 0); });
+
+  // Initial
+  onScroll();
+})();
+</script></body>
 </html>
