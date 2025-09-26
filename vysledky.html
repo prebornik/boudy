@@ -1591,6 +1591,161 @@ function exportTableToExcel(tableID, filename = 'vysledky.xlsx') {
 }
 </script>
 
+<!-- ⚙️ Přidej si do stránky tento skript (klidně pod tvůj stávající). -->
+<script>
+  // >>>>>>>>>>>>>>>>>>> KONFIGURACE <<<<<<<<<<<<<<<<<<
+  // DOPLŇ sem svou Vercel URL endpointu (serverless backend)
+
+  const ENDPOINT_URL = 'https://export-xlsx-h2s81surx-vaclavs-projects-7b103279.vercel.app/api/export-xlsx';
+
+  // Detekce Facebook/Instagram in‑app browseru (Messenger/IG)
+  function isInAppFBIG() {
+    const ua = (navigator.userAgent || navigator.vendor || '').toLowerCase();
+    return /\b(fban|fbav|fb_iab|instagram)\b/i.test(ua);
+  }
+
+  // Vytvoří "viditelný klon" tabulky: ponechá jen viditelné sloupce a řádky
+  function getVisibleClone(table) {
+    const clone = table.cloneNode(true);
+
+    // zjistit, které sloupce jsou viditelné (podle <th>)
+    const headRow = table.tHead && table.tHead.rows && table.tHead.rows[0];
+    const headers = headRow ? Array.from(headRow.cells) : Array.from(table.rows[0]?.cells || []);
+    const visibleIdx = headers
+      .map((th, i) => ({ i, vis: getComputedStyle(th).display !== 'none' }))
+      .filter(x => x.vis)
+      .map(x => x.i);
+
+    function pruneRow(row) {
+      const cells = Array.from(row.cells || []);
+      for (let j = cells.length - 1; j >= 0; j--) {
+        if (!visibleIdx.includes(j)) row.deleteCell(j);
+      }
+    }
+
+    Array.from(clone.tHead?.rows || []).forEach(pruneRow);
+    Array.from(clone.tBodies || []).forEach(tb => Array.from(tb.rows || []).forEach(pruneRow));
+
+    // odstranit řádky, které jsou na originálu display:none
+    const origBodies  = Array.from(table.tBodies || []);
+    const cloneBodies = Array.from(clone.tBodies || []);
+    for (let bi = 0; bi < cloneBodies.length; bi++) {
+      const oRows = Array.from(origBodies[bi]?.rows || []);
+      const cRows = Array.from(cloneBodies[bi]?.rows || []);
+      cRows.forEach((r, idx) => {
+        const orig = oRows[idx];
+        if (orig && getComputedStyle(orig).display === 'none') r.remove();
+      });
+    }
+    return clone;
+  }
+
+  // Převede "viditelný klon" tabulky na 2D pole (řádky -> buňky jako text)
+  function tableCloneToRows(clone) {
+    const rows = [];
+    clone.querySelectorAll('tr').forEach(tr => {
+      const cells = tr.querySelectorAll('th,td');
+      if (!cells.length) return;
+      rows.push([...cells].map(td => (td.textContent || '').trim()));
+    });
+    return rows;
+  }
+
+  // Serverless export: odešle aktuálně zobrazená data na endpoint (funguje i v Messengeru)
+  function exportExcelServer(rows, filename = 'vysledky.xlsx', sheetName = 'Výsledky') {
+    if (!ENDPOINT_URL) { alert('Chybí ENDPOINT_URL pro serverless export.'); return; }
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = ENDPOINT_URL;
+    form.target = '_self'; // v in-app stabilnější než _blank
+    form.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'payload';
+    input.value = JSON.stringify({ filename, sheetName, rows });
+
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    form.remove();
+  }
+
+  // ================== TVOJE FUNKCE (doplněná o serverless větev) ==================
+  function exportTableToExcel(tableID, filename = 'vysledky.xlsx') {
+    try {
+      const table = document.getElementById(tableID);
+      if (!table) { alert('Tabulka s daným ID nebyla nalezena.'); return; }
+
+      // --- 0) Pokud FB/IG in-app browser -> serverless export a konec ---
+      if (isInAppFBIG()) {
+        const visibleClone = getVisibleClone(table);
+        const visibleRows = tableCloneToRows(visibleClone); // přesně to, co je aktuálně vidět
+        exportExcelServer(visibleRows, filename, 'Výsledky');
+        return;
+      }
+
+      // --- 1) Tvoje původní logika (ponechána) – klon + ořez jen viditelného ---
+      const clone = table.cloneNode(true);
+
+      // viditelné sloupce podle display != 'none' na <th>
+      const headRow = table.tHead && table.tHead.rows && table.tHead.rows[0];
+      const headers = headRow ? Array.from(headRow.cells) : Array.from(table.rows[0]?.cells || []);
+      const visibleIdx = headers
+        .map((th, i) => ({ i, vis: getComputedStyle(th).display !== 'none' }))
+        .filter(x => x.vis)
+        .map(x => x.i);
+
+      function pruneRow(row) {
+        const cells = Array.from(row.cells || []);
+        for (let j = cells.length - 1; j >= 0; j--) {
+          if (!visibleIdx.includes(j)) row.deleteCell(j);
+        }
+      }
+      Array.from(clone.tHead?.rows || []).forEach(pruneRow);
+      Array.from(clone.tBodies || []).forEach(tb => Array.from(tb.rows || []).forEach(pruneRow));
+
+      // odstranit řádky, které jsou na originálu display:none
+      const origRows  = Array.from(table.tBodies[0]?.rows || []);
+      const cloneRows = Array.from(clone.tBodies[0]?.rows || []);
+      cloneRows.forEach((r, idx) => {
+        const orig = origRows[idx];
+        if (orig && getComputedStyle(orig).display === 'none') r.remove();
+      });
+
+      // --- 2) XLSX → když není, automaticky CSV fallback ---
+      if (typeof XLSX !== 'undefined') {
+        try {
+          const wb = XLSX.utils.table_to_book(clone, { sheet: 'Výsledky' });
+          XLSX.writeFile(wb, filename);
+          return; // hotovo
+        } catch (e) {
+          console.warn('XLSX export selhal, přepínám na CSV', e);
+        }
+      }
+
+      // CSV fallback – oddělovač ; kvůli českému Excelu
+      const rows = Array.from(clone.querySelectorAll('tr'));
+      const csv = rows.map(tr => Array.from(tr.querySelectorAll('th,td')).map(td => {
+        let v = (td.textContent || '').trim().replace(/\r?\n/g, ' ');
+        v = v.replace(/\"/g, '\"\"');     // escapování uvozovek
+        if (/[;\",]/.test(v)) v = '"' + v + '"';
+        return v;
+      }).join(';')).join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename.replace(/\.xlsx$/i, '.csv');
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      alert('Export selhal: ' + (err && err.message ? err.message : err));
+    }
+  }
+</script>
+
 <script id="backtotop-mobile-scroll-patch">
 (function(){
   const btn = document.getElementById('backToTop');
