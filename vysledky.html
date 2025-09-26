@@ -17,6 +17,7 @@
   <meta property="og:image" content="https://prebornik.github.io/boudy/assets/og-image.jpg">
   <!-- === /SEO === -->
   <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
+
 <style>
 table {
   width: 100%;
@@ -275,7 +276,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <input id="searchName" placeholder="Zadej jméno..." type="text"/>
 </div>
 <div style="margin-bottom: 15px;">
-  <button id="btn-export-excel" type="button">Export do Excelu</button>
+  <button id="exportBtn" type="button">Export do Excelu</button>
 </div>
 <button class="only-mobile" id="toggleCols" type="button">Zobrazit všechny sloupce</button>
 <div style="height:6px"></div>
@@ -1522,230 +1523,6 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-<script>
-function exportTableToExcel(tableID, filename = 'vysledky.xlsx') {
-  try {
-    const table = document.getElementById(tableID);
-    if (!table) { alert('Tabulka s daným ID nebyla nalezena.'); return; }
-
-    // --- 1) Klon tabulky + ponech jen aktuálně viditelné sloupce/řádky ---
-    const clone = table.cloneNode(true);
-
-    // viditelné sloupce podle display != 'none' na <th>
-    const headRow = table.tHead && table.tHead.rows && table.tHead.rows[0];
-    const headers = headRow ? Array.from(headRow.cells) : Array.from(table.rows[0]?.cells || []);
-    const visibleIdx = headers
-      .map((th, i) => ({ i, vis: getComputedStyle(th).display !== 'none' }))
-      .filter(x => x.vis)
-      .map(x => x.i);
-
-    function pruneRow(row) {
-      const cells = Array.from(row.cells || []);
-      for (let j = cells.length - 1; j >= 0; j--) {
-        if (!visibleIdx.includes(j)) row.deleteCell(j);
-      }
-    }
-    Array.from(clone.tHead?.rows || []).forEach(pruneRow);
-    Array.from(clone.tBodies || []).forEach(tb => Array.from(tb.rows || []).forEach(pruneRow));
-
-    // odstranit řádky, které jsou na originálu display:none
-    const origRows  = Array.from(table.tBodies[0]?.rows || []);
-    const cloneRows = Array.from(clone.tBodies[0]?.rows || []);
-    cloneRows.forEach((r, idx) => {
-      const orig = origRows[idx];
-      if (orig && getComputedStyle(orig).display === 'none') r.remove();
-    });
-
-    // --- 2) XLSX → když není, automaticky CSV fallback ---
-    if (typeof XLSX !== 'undefined') {
-      try {
-        const wb = XLSX.utils.table_to_book(clone, { sheet: 'Výsledky' });
-        XLSX.writeFile(wb, filename);
-        return; // hotovo
-      } catch (e) {
-        console.warn('XLSX export selhal, přepínám na CSV', e);
-      }
-    }
-
-    // CSV fallback – oddělovač ; kvůli českému Excelu
-    const rows = Array.from(clone.querySelectorAll('tr'));
-    const csv = rows.map(tr => Array.from(tr.querySelectorAll('th,td')).map(td => {
-      let v = (td.textContent || '').trim().replace(/\r?\n/g, ' ');
-      v = v.replace(/\"/g, '\"\"');     // escapování uvozovek
-      if (/[;\",]/.test(v)) v = '"' + v + '"';
-      return v;
-    }).join(';')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename.replace(/\.xlsx$/i, '.csv');
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } catch (err) {
-    alert('Export selhal: ' + (err && err.message ? err.message : err));
-  }
-}
-</script>
-
-<!-- ⚙️ Přidej si do stránky tento skript (klidně pod tvůj stávající). -->
-<script>
-  // >>>>>>>>>>>>>>>>>>> KONFIGURACE <<<<<<<<<<<<<<<<<<
-  // DOPLŇ sem svou Vercel URL endpointu (serverless backend)
-
-  const ENDPOINT_URL = 'https://export-xlsx-ay59ly58u-vaclavs-projects-7b103279.vercel.app/api/export-xlsx';
-
-  // Detekce Facebook/Instagram in‑app browseru (Messenger/IG)
-  function isInAppFBIG() {
-    const ua = (navigator.userAgent || navigator.vendor || '').toLowerCase();
-    return /\b(fban|fbav|fb_iab|instagram)\b/i.test(ua);
-  }
-
-  // Vytvoří "viditelný klon" tabulky: ponechá jen viditelné sloupce a řádky
-  function getVisibleClone(table) {
-    const clone = table.cloneNode(true);
-
-    // zjistit, které sloupce jsou viditelné (podle <th>)
-    const headRow = table.tHead && table.tHead.rows && table.tHead.rows[0];
-    const headers = headRow ? Array.from(headRow.cells) : Array.from(table.rows[0]?.cells || []);
-    const visibleIdx = headers
-      .map((th, i) => ({ i, vis: getComputedStyle(th).display !== 'none' }))
-      .filter(x => x.vis)
-      .map(x => x.i);
-
-    function pruneRow(row) {
-      const cells = Array.from(row.cells || []);
-      for (let j = cells.length - 1; j >= 0; j--) {
-        if (!visibleIdx.includes(j)) row.deleteCell(j);
-      }
-    }
-
-    Array.from(clone.tHead?.rows || []).forEach(pruneRow);
-    Array.from(clone.tBodies || []).forEach(tb => Array.from(tb.rows || []).forEach(pruneRow));
-
-    // odstranit řádky, které jsou na originálu display:none
-    const origBodies  = Array.from(table.tBodies || []);
-    const cloneBodies = Array.from(clone.tBodies || []);
-    for (let bi = 0; bi < cloneBodies.length; bi++) {
-      const oRows = Array.from(origBodies[bi]?.rows || []);
-      const cRows = Array.from(cloneBodies[bi]?.rows || []);
-      cRows.forEach((r, idx) => {
-        const orig = oRows[idx];
-        if (orig && getComputedStyle(orig).display === 'none') r.remove();
-      });
-    }
-    return clone;
-  }
-
-  // Převede "viditelný klon" tabulky na 2D pole (řádky -> buňky jako text)
-  function tableCloneToRows(clone) {
-    const rows = [];
-    clone.querySelectorAll('tr').forEach(tr => {
-      const cells = tr.querySelectorAll('th,td');
-      if (!cells.length) return;
-      rows.push([...cells].map(td => (td.textContent || '').trim()));
-    });
-    return rows;
-  }
-
-  // Serverless export: odešle aktuálně zobrazená data na endpoint (funguje i v Messengeru)
-  function exportExcelServer(rows, filename = 'vysledky.xlsx', sheetName = 'Výsledky') {
-    if (!ENDPOINT_URL) { alert('Chybí ENDPOINT_URL pro serverless export.'); return; }
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = ENDPOINT_URL;
-    form.target = '_self'; // v in-app stabilnější než _blank
-    form.style.display = 'none';
-
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'payload';
-    input.value = JSON.stringify({ filename, sheetName, rows });
-
-    form.appendChild(input);
-    document.body.appendChild(form);
-    form.submit();
-    form.remove();
-  }
-
-  // ================== TVOJE FUNKCE (doplněná o serverless větev) ==================
-  function exportTableToExcel(tableID, filename = 'vysledky.xlsx') {
-    try {
-      const table = document.getElementById(tableID);
-      if (!table) { alert('Tabulka s daným ID nebyla nalezena.'); return; }
-
-      // --- 0) Pokud FB/IG in-app browser -> serverless export a konec ---
-      if (isInAppFBIG()) {
-        const visibleClone = getVisibleClone(table);
-        const visibleRows = tableCloneToRows(visibleClone); // přesně to, co je aktuálně vidět
-        exportExcelServer(visibleRows, filename, 'Výsledky');
-        return;
-      }
-
-      // --- 1) Tvoje původní logika (ponechána) – klon + ořez jen viditelného ---
-      const clone = table.cloneNode(true);
-
-      // viditelné sloupce podle display != 'none' na <th>
-      const headRow = table.tHead && table.tHead.rows && table.tHead.rows[0];
-      const headers = headRow ? Array.from(headRow.cells) : Array.from(table.rows[0]?.cells || []);
-      const visibleIdx = headers
-        .map((th, i) => ({ i, vis: getComputedStyle(th).display !== 'none' }))
-        .filter(x => x.vis)
-        .map(x => x.i);
-
-      function pruneRow(row) {
-        const cells = Array.from(row.cells || []);
-        for (let j = cells.length - 1; j >= 0; j--) {
-          if (!visibleIdx.includes(j)) row.deleteCell(j);
-        }
-      }
-      Array.from(clone.tHead?.rows || []).forEach(pruneRow);
-      Array.from(clone.tBodies || []).forEach(tb => Array.from(tb.rows || []).forEach(pruneRow));
-
-      // odstranit řádky, které jsou na originálu display:none
-      const origRows  = Array.from(table.tBodies[0]?.rows || []);
-      const cloneRows = Array.from(clone.tBodies[0]?.rows || []);
-      cloneRows.forEach((r, idx) => {
-        const orig = origRows[idx];
-        if (orig && getComputedStyle(orig).display === 'none') r.remove();
-      });
-
-      // --- 2) XLSX → když není, automaticky CSV fallback ---
-      if (typeof XLSX !== 'undefined') {
-        try {
-          const wb = XLSX.utils.table_to_book(clone, { sheet: 'Výsledky' });
-          XLSX.writeFile(wb, filename);
-          return; // hotovo
-        } catch (e) {
-          console.warn('XLSX export selhal, přepínám na CSV', e);
-        }
-      }
-
-      // CSV fallback – oddělovač ; kvůli českému Excelu
-      const rows = Array.from(clone.querySelectorAll('tr'));
-      const csv = rows.map(tr => Array.from(tr.querySelectorAll('th,td')).map(td => {
-        let v = (td.textContent || '').trim().replace(/\r?\n/g, ' ');
-        v = v.replace(/\"/g, '\"\"');     // escapování uvozovek
-        if (/[;\",]/.test(v)) v = '"' + v + '"';
-        return v;
-      }).join(';')).join('\n');
-
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename.replace(/\.xlsx$/i, '.csv');
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (err) {
-      alert('Export selhal: ' + (err && err.message ? err.message : err));
-    }
-  }
-</script>
-
 <script id="backtotop-mobile-scroll-patch">
 (function(){
   const btn = document.getElementById('backToTop');
@@ -1798,336 +1575,111 @@ function exportTableToExcel(tableID, filename = 'vysledky.xlsx') {
 })();
 </script>
 
+<script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist"></script>
+
 <script>
-/**
- * FB/Messenger in‑app prohlížeče často blokují klasické stahování XLSX.
- * Tento skript zachytí klik na "Export" a v FB/Messenger místo navigace
- * na backend vygeneruje XLSX přímo z aktuálně VIDITELNÉ tabulky.
- * Mimo FB/Messenger se NIC NEMĚNÍ (export běží jako dosud).
- */
+  // Detekce in‑app prohlížeče (FB/IG WebView)
+  function isInAppBrowser() {
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    return /FBAN|FBAV|FB_IAB|Instagram/i.test(ua);
+  }
 
-// ====== PŘIZPŮSOBITELNÉ NASTAVENÍ (jen když bude potřeba) ==================
-const TABLE_SELECTORS = ['#vysledky', '.results-table', 'table']; // v tomto pořadí se hledá tabulka
-const EXPORT_TRIGGER_SELECTORS = [
-  '#btn-export-excel',         // pokud máš ID tlačítka
-  '.export-excel'              // nebo třídu
-];
-// Pokud tvůj odkaz míří na konkrétní endpoint/URL, ponech regexy níže:
-const EXPORT_HREF_REGEX = /(\.xlsx(\?|$))|(\/api\/export-xlsx)/i;
-// ===========================================================================
+  // Vyčtení pouze viditelných (filtrovaných) řádků tabulky
+  function getVisibleTableData(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) throw new Error(`Tabulka #${tableId} nenalezena.`);
+    const rows = [];
 
-// Detekce FB/Messenger in-app
-function isFacebookInApp() {
-  const ua = navigator.userAgent || '';
-  return /FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
-}
+    // hlavička
+    const headRow = table.tHead ? table.tHead.querySelector('tr') : null;
+    if (headRow) rows.push(Array.from(headRow.cells).map(c => c.innerText.trim()));
 
-// Mini toast (vizuální zpětná vazba i bez konzole)
-function toast(msg, ok = false) {
-  const div = document.createElement('div');
-  div.textContent = msg;
-  div.style.cssText =
-    'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);' +
-    'max-width:90vw;padding:10px 14px;border-radius:8px;color:#fff;' +
-    `background:${ok ? '#2e7d32' : '#c62828'};z-index:999999;font:14px/1.3 sans-serif;`;
-  document.body.appendChild(div);
-  setTimeout(() => div.remove(), 3000);
-}
+    // tělo
+    const body = table.tBodies && table.tBodies[0] ? table.tBodies[0] : table.querySelector('tbody');
+    const trs = body ? Array.from(body.rows) : Array.from(table.querySelectorAll('tr'));
+    for (const tr of trs) {
+      const cs = getComputedStyle(tr);
+      if (tr.hidden || cs.display === 'none') continue;
+      const row = Array.from(tr.cells).map(td => (td.innerText || '').replace(/\s+/g, ' ').trim());
+      if (row.length) rows.push(row);
+    }
+    return rows;
+  }
 
-// Najdi první VIDITELNOU tabulku
-function getVisibleTable() {
-  for (const sel of TABLE_SELECTORS) {
-    const nodes = document.querySelectorAll(sel);
-    for (const el of nodes) {
-      const table = el.tagName?.toLowerCase() === 'table' ? el : el.querySelector('table');
-      if (!table) continue;
-      const s1 = getComputedStyle(el);
-      const s2 = getComputedStyle(table);
-      if (s1.display !== 'none' && s1.visibility !== 'hidden' &&
-          s2.display !== 'none' && s2.visibility !== 'hidden') {
-        return table;
+  // CSV helper (BOM + ; kvůli českému Excelu)
+  function aoaToCSV(aoa) {
+    const esc = v => {
+      const s = (v ?? '').toString().replace(/"/g, '""');
+      return /[",;\n]/.test(s) ? `"${s}"` : s;
+    };
+    const csv = aoa.map(r => r.map(esc).join(';')).join('\n');
+    return '\uFEFF' + csv; // BOM pro diakritiku
+  }
+
+  async function exportResults(tableId, baseName='vysledky') {
+    console.log('[export] start', { tableId, baseName });
+    const data = getVisibleTableData(tableId);
+    if (!data.length) { alert('Není co exportovat.'); return; }
+
+    // 1) Zkusíme Web Share API s CSV (telefony)
+    const csv = aoaToCSV(data);
+    const csvBlob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const csvFile = new File([csvBlob], `${baseName}.csv`, { type: csvBlob.type });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [csvFile] })) {
+        console.log('[export] sharing CSV');
+        await navigator.share({ files: [csvFile], title: baseName });
+        return;
       }
-    }
-  }
-  return document.querySelector('table');
-}
-
-// AOA pouze z VIDITELNÝCH buněk (aby export = to, co vidím)
-function extractVisibleAoA(tableEl) {
-  if (!tableEl) throw new Error('Tabulka výsledků nebyla nalezena.');
-  const rows = Array.from(tableEl.querySelectorAll('tr')).filter(tr => {
-    const st = getComputedStyle(tr);
-    return st.display !== 'none' && st.visibility !== 'hidden';
-  });
-  return rows.map(tr => {
-    const cells = Array.from(tr.querySelectorAll('th,td')).filter(td => {
-      const st = getComputedStyle(td);
-      return st.display !== 'none' && st.visibility !== 'hidden';
-    }).map(td => (td.innerText || '').replace(/\r?\n|\r/g, ' ').trim());
-    return cells;
-  });
-}
-
-// XLSX export (viditelné → xlsx)
-function exportVisibleXLSX(filename = 'vysledky.xlsx') {
-  const table = getVisibleTable();
-  if (!table) throw new Error('Tabulka výsledků nebyla nalezena.');
-  const aoa = extractVisibleAoA(table);
-  const ws  = XLSX.utils.aoa_to_sheet(aoa);
-  const wb  = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Výsledky');
-  XLSX.writeFile(wb, filename);
-}
-
-// CSV fallback (kdyby XLSX writeFile spadlo)
-function exportVisibleCSV(filename = 'vysledky.csv') {
-  const table = getVisibleTable();
-  if (!table) throw new Error('Tabulka výsledků nebyla nalezena.');
-  const aoa = extractVisibleAoA(table);
-  const csv = aoa.map(row =>
-    row.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(';')
-  ).join('\r\n');
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  URL.revokeObjectURL(a.href);
-  a.remove();
-}
-
-// Rozhodni, zda prvek je „export“ (dle selektorů / href / textu)
-function isExportTrigger(el) {
-  if (!el) return false;
-  // 1) výslovné selektory
-  for (const sel of EXPORT_TRIGGER_SELECTORS) {
-    if (el.matches?.(sel)) return true;
-  }
-  // 2) odkazy s /api/export-xlsx nebo *.xlsx
-  if (el.tagName === 'A' && el.href && EXPORT_HREF_REGEX.test(el.href)) return true;
-  // 3) heuristika podle textu
-  const txt = (el.textContent || '').toLowerCase();
-  if (txt.includes('export') && (txt.includes('xlsx') || txt.includes('excel'))) return true;
-  return false;
-}
-
-// Delegované zachycení KLIKU (capture=true) – chytíme dřív než navigace/form submit
-document.addEventListener('click', function onDocClick(ev) {
-  if (!isFacebookInApp()) return;
-
-  const target = ev.target.closest?.('a,button,input[type="submit"]');
-  if (!target) return;
-
-  // Hledáme export na prvek i na rodiče (pro případy, kdy je wrapper <a> kolem ikony apod.)
-  let el = target;
-  let matched = false;
-  for (let i = 0; i < 3 && el; i++, el = el.parentElement) {
-    if (isExportTrigger(el)) { matched = true; break; }
-  }
-  if (!matched) return;
-
-  // Zastavíme navigaci i ostatní handlery (aby už to „neodskočilo“ na vercel.com)
-  ev.preventDefault();
-  ev.stopPropagation();
-  if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-
-  try {
-    exportVisibleXLSX('vysledky.xlsx');
-    // toast('XLSX export hotový ✔', true); // odkomentuj pro viditelnou potvrzovací hlášku
-  } catch (e) {
-    console.warn('XLSX export selhal, zkouším CSV:', e);
-    try {
-      exportVisibleCSV('vysledky.csv');
-      // toast('CSV export hotový ✔', true);
-    } catch (e2) {
-      console.error('CSV export také selhal:', e2);
-      toast('Export se nepodařil. Otevřete stránku v externím prohlížeči (Chrome/Safari).');
-    }
-  }
-}, true);
-
-// Zachyť i SUBMIT formuláře (kdyby export spouštěl <form>)
-document.addEventListener('submit', function onDocSubmit(ev) {
-  if (!isFacebookInApp()) return;
-  const form = ev.target;
-  // Pokud formulář směřuje na /api/export-xlsx, přebíráme ho
-  if (form && typeof form.action === 'string' && EXPORT_HREF_REGEX.test(form.action)) {
-    ev.preventDefault();
-    ev.stopPropagation();
-    if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
-    try {
-      exportVisibleXLSX('vysledky.xlsx');
-      // toast('XLSX export hotový ✔', true);
     } catch (e) {
-      console.warn('XLSX export selhal, zkouším CSV:', e);
+      console.warn('[export] share zrušeno/selhalo', e);
+    }
+
+    // 2) XLSX v běžných prohlížečích (mimo IAB), pokud je k dispozici SheetJS
+    if (!isInAppBrowser() && window.XLSX && XLSX.utils && XLSX.writeFile) {
       try {
-        exportVisibleCSV('vysledky.csv');
-        // toast('CSV export hotový ✔', true);
-      } catch (e2) {
-        console.error('CSV export také selhal:', e2);
-        toast('Export se nepodařil. Otevřete stránku v externím prohlížeči (Chrome/Safari).');
+        console.log('[export] write XLSX přes SheetJS');
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Vysledky');
+        XLSX.writeFile(wb, `${baseName}.xlsx`);
+        return;
+      } catch (e) {
+        console.warn('[export] XLSX save selhalo, padám na CSV', e);
       }
     }
-  }
-}, true);
-</script>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    // 3) CSV fallback – nejrobustnější varianta pro Messenger/Instagram apod.
+    const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
 
-<script>
-// ===== Nastavení – upravte POUZE, pokud máte jiný selektor tabulky =====
-const TABLE_SELECTORS = ['#vysledky', '.results-table', 'table']; // priorita výběru tabulky
-const EXPORT_SELECTORS = [
-  '#btn-export-excel',              // běžné ID tlačítka
-  '.export-excel',                  // běžná třída
-  'a[href*="/api/export-xlsx"]'     // odkaz na serverový export (Vercel)
-];
-// =========================================================================
-
-// Detekce Facebook/Messenger in‑app browseru
-function isFacebookInApp() {
-  const ua = navigator.userAgent || '';
-  return /FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
-}
-
-// Najdi první viditelnou tabulku (aby export odpovídal aktuálnímu filtru)
-function getVisibleTable() {
-  for (const sel of TABLE_SELECTORS) {
-    const candidates = document.querySelectorAll(sel);
-    for (const el of candidates) {
-      const table = el.tagName?.toLowerCase() === 'table' ? el : el.querySelector('table');
-      if (!table) continue;
-      const s1 = getComputedStyle(el);
-      const s2 = getComputedStyle(table);
-      if (s1.display !== 'none' && s1.visibility !== 'hidden' &&
-          s2.display !== 'none' && s2.visibility !== 'hidden') {
-        return table;
-      }
+    if (isInAppBrowser()) {
+      console.log('[export] IAB → navigace na data: CSV');
+      window.location.href = dataUri;
+      setTimeout(() => {
+        alert('Pokud se soubor neuloží, použij v menu aplikace volbu „Otevřít v prohlížeči“ (Safari/Chrome) a export zopakuj. In‑app prohlížeče Messenger/Instagram stahování často omezují.');
+      }, 600);
+      return;
     }
+
+    // běžný prohlížeč – stáhni CSV
+    console.log('[export] stahuji CSV přes <a download>');
+    const a = document.createElement('a');
+    a.href = dataUri;
+    a.download = `${baseName}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   }
-  // úplný fallback: první tabulka ve stránce
-  return document.querySelector('table');
-}
 
-// Export XLSX z právě viditelné tabulky
-function exportVisibleTableToXLSX(filename = 'vysledky.xlsx') {
-  const table = getVisibleTable();
-  if (!table) throw new Error('Tabulka výsledků nebyla nalezena.');
-
-  // Použijeme table_to_book (bere jen to, co je v DOM – tedy po filtraci)
-  const wb = XLSX.utils.table_to_book(table, { sheet: 'Výsledky' });
-  XLSX.writeFile(wb, filename); // vyvolá stažení souboru
-}
-
-// Připojí „FB‑režim“ k vašemu tlačítku/odkazu – mimo FB nic nemění
-function attachFbInAppHandler() {
-  if (!isFacebookInApp()) return; // mimo FB/Messenger neděláme nic
-
-  // Najdi kandidáty na „Export do Excelu“
-  const candidates = new Set();
-
-  // 1) Výslovně zadané selektory
-  for (const sel of EXPORT_SELECTORS) {
-    document.querySelectorAll(sel).forEach(el => candidates.add(el));
-  }
-  // 2) Heuristika – odkazy s .xlsx v názvu souboru (kdyby byl custom endpoint)
-  document.querySelectorAll('a[href]').forEach(a => {
-    if (/\.(xlsx?)($|\?)/i.test(a.getAttribute('href'))) candidates.add(a);
+  // Připojení události na tlačítko po načtení DOM
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('exportBtn');
+    if (!btn) { console.warn('[export] Nenalezen #exportBtn'); return; }
+    btn.addEventListener('click', () => exportResults('resultsTable'));
+    console.log('[export] handler připojen k #exportBtn');
   });
-
-  // Připojit obsluhu jen v FB/Messenger
-  candidates.forEach(el => {
-    el.addEventListener('click', (e) => {
-      try {
-        // Zastavíme původní „stáhni z odkazu“, které FB prohlížeč často blokuje
-        e.preventDefault();
-        e.stopPropagation();
-        exportVisibleTableToXLSX('vysledky.xlsx');
-      } catch (err) {
-        console.error('Client XLSX export selhal:', err);
-        alert('Export v prohlížeči Facebook/Messenger se nepodařil. Otevřete prosím stránku v externím prohlížeči (Chrome/Safari) a zkuste to znovu.');
-      }
-    }, { capture: true });
-  });
-}
-
-document.addEventListener('DOMContentLoaded', attachFbInAppHandler);
 </script>
 
-<script>
-(function(){
-  // Detekce FB/Messenger in-app prohlížeče
-  function isFacebookInApp() {
-    const ua = navigator.userAgent || '';
-    return /FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
-  }
-
-  // Najdi první VIDITELNOU tabulku (export = přesně to, co teď vidíš)
-  function getVisibleTable() {
-    // tvoje tabulka má id="resultsTable" -> preferuj ji
-    const el = document.getElementById('resultsTable');
-    if (el) return el;
-    // fallback: první viditelná tabulka
-    const tables = document.querySelectorAll('table');
-    for (const t of tables) {
-      const s = getComputedStyle(t);
-      if (s.display !== 'none' && s.visibility !== 'hidden') return t;
-    }
-    return null;
-  }
-
-  function exportVisibleXLSX(filename = 'vysledky.xlsx') {
-    const t = getVisibleTable();
-    if (!t) throw new Error('Tabulka výsledků nebyla nalezena.');
-    const wb = XLSX.utils.table_to_book(t, { sheet: 'Výsledky' });
-    XLSX.writeFile(wb, filename); // vygeneruje a stáhne XLSX
-  }
-
-  function exportVisibleCSV(filename = 'vysledky.csv') {
-    const t = getVisibleTable();
-    if (!t) throw new Error('Tabulka výsledků nebyla nalezena.');
-    const rows = Array.from(t.querySelectorAll('tr')).filter(r=>{
-      const s=getComputedStyle(r); return s.display!=='none' && s.visibility!=='hidden';
-    }).map(r => Array.from(r.querySelectorAll('th,td')).filter(td=>{
-      const s=getComputedStyle(td); return s.display!=='none' && s.visibility!=='hidden';
-    }).map(td => '"'+(td.innerText||'').replace(/\r?\n|\r/g,' ').trim().replace(/"/g,'""')+'"').join(';')).join('\r\n');
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([rows],{type:'text/csv;charset=utf-8'}));
-    a.download=filename; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); a.remove();
-  }
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const btn = document.getElementById('btn-export-excel');
-    if (!btn) return;
-
-    btn.addEventListener('click', function(ev){
-      ev.preventDefault(); ev.stopPropagation();
-      if (isFacebookInApp()) {
-        // FB/Messenger → klientský XLSX + CSV fallback
-        try { exportVisibleXLSX('vysledky.xlsx'); }
-        catch (e) {
-          console.warn('XLSX selhal, zkouším CSV:', e);
-          try { exportVisibleCSV('vysledky.csv'); }
-          catch (e2) {
-            alert('Export se nepodařil. Otevřete stránku v externím prohlížeči (Chrome/Safari) a zkuste to znovu.');
-          }
-        }
-      } else {
-        // MIMO FB/Messenger → ponecháme TVOJI původní funkci (beze změny)
-        if (typeof exportTableToExcel === 'function') {
-          exportTableToExcel('resultsTable');
-        } else {
-          // kdyby funkce nebyla, aspoň klientský export
-          try { exportVisibleXLSX('vysledky.xlsx'); }
-          catch { exportVisibleCSV('vysledky.csv'); }
-        }
-      }
-    }, { passive:false });
-  });
-})();
-</script>
 
 </body>
 </html>
