@@ -1575,26 +1575,43 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
-<script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
 
 <script>
-  // Detekce in‑app prohlížeče (FB/IG WebView)
+  function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src; s.defer = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => reject(new Error('Nepodařilo se načíst: ' + src));
+      document.head.appendChild(s);
+    });
+  }
+
+  async function ensureXLSX() {
+    if (window.XLSX && XLSX.utils && XLSX.writeFile) return true;
+    try { await loadScriptOnce(SHEETJS_PRIMARY); } catch (_) {}
+    if (window.XLSX && XLSX.utils && XLSX.writeFile) return true;
+    try { await loadScriptOnce(SHEETJS_FALLBACK); } catch (_) {}
+    return !!(window.XLSX && XLSX.utils && XLSX.writeFile);
+  }
+
+  // ====== Detekce in‑app prohlížečů (FB/IG WebView) – info/hláška ======
   function isInAppBrowser() {
     const ua = navigator.userAgent || navigator.vendor || window.opera;
     return /FBAN|FBAV|FB_IAB|Instagram/i.test(ua);
   }
 
-  // Vyčtení pouze viditelných (filtrovaných) řádků tabulky
+  // ====== Získání pouze VIDITELNÝCH (filtrovaných) řádků tabulky ======
   function getVisibleTableData(tableId) {
     const table = document.getElementById(tableId);
     if (!table) throw new Error(`Tabulka #${tableId} nenalezena.`);
     const rows = [];
 
-    // hlavička
     const headRow = table.tHead ? table.tHead.querySelector('tr') : null;
     if (headRow) rows.push(Array.from(headRow.cells).map(c => c.innerText.trim()));
 
-    // tělo
     const body = table.tBodies && table.tBodies[0] ? table.tBodies[0] : table.querySelector('tbody');
     const trs = body ? Array.from(body.rows) : Array.from(table.querySelectorAll('tr'));
     for (const tr of trs) {
@@ -1606,80 +1623,87 @@ document.addEventListener('DOMContentLoaded', () => {
     return rows;
   }
 
-  // CSV helper (BOM + ; kvůli českému Excelu)
+  // ====== CSV fallback (BOM + ; kvůli českému Excelu) ======
   function aoaToCSV(aoa) {
     const esc = v => {
       const s = (v ?? '').toString().replace(/"/g, '""');
       return /[",;\n]/.test(s) ? `"${s}"` : s;
     };
     const csv = aoa.map(r => r.map(esc).join(';')).join('\n');
-    return '\uFEFF' + csv; // BOM pro diakritiku
+    return '\uFEFF' + csv; // BOM
   }
 
-  async function exportResults(tableId, baseName='vysledky') {
-    console.log('[export] start', { tableId, baseName });
+  // ====== Hlavní export: XLSX → sdílení XLSX → přímé stažení XLSX → CSV ======
+  async function exportXLSXFirst(tableId, baseName='vysledky') {
     const data = getVisibleTableData(tableId);
     if (!data.length) { alert('Není co exportovat.'); return; }
 
-    // 1) Zkusíme Web Share API s CSV (telefony)
-    const csv = aoaToCSV(data);
-    const csvBlob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const csvFile = new File([csvBlob], `${baseName}.csv`, { type: csvBlob.type });
-    try {
-      if (navigator.canShare && navigator.canShare({ files: [csvFile] })) {
-        console.log('[export] sharing CSV');
-        await navigator.share({ files: [csvFile], title: baseName });
-        return;
-      }
-    } catch (e) {
-      console.warn('[export] share zrušeno/selhalo', e);
-    }
+    // A) zajisti načtení SheetJS
+    const hasXLSX = await ensureXLSX();
+    console.log('[export] SheetJS načteno:', hasXLSX, window.XLSX?.version);
 
-    // 2) XLSX v běžných prohlížečích (mimo IAB), pokud je k dispozici SheetJS
-    if (!isInAppBrowser() && window.XLSX && XLSX.utils && XLSX.writeFile) {
+    // B) POKUS 1: XLSX přes writeFile (nejčistší cesta v Chrome/Edge/Firefox)
+    if (hasXLSX) {
       try {
-        console.log('[export] write XLSX přes SheetJS');
         const ws = XLSX.utils.aoa_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Vysledky');
-        XLSX.writeFile(wb, `${baseName}.xlsx`);
+        XLSX.writeFile(wb, `${baseName}.xlsx`, { compression: true }); // přímé stažení
         return;
       } catch (e) {
-        console.warn('[export] XLSX save selhalo, padám na CSV', e);
+        console.warn('[export] writeFile selhal, zkouším sdílení XLSX', e);
+      }
+
+      // C) POKUS 2: vygenerovat XLSX a zkusit sdílení (mobily), jinak stáhnout blob
+      try {
+        const ws = XLSX.utils.aoa_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Vysledky');
+        const ab = XLSX.write(wb, { bookType: 'xlsx', type: 'array', compression: true });
+        const xBlob = new Blob([ab], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const xFile = new File([xBlob], `${baseName}.xlsx`, { type: xBlob.type });
+
+        if (navigator.canShare && navigator.canShare({ files: [xFile] })) {
+          await navigator.share({ files: [xFile], title: baseName });
+          return;
+        } else {
+          const url = URL.createObjectURL(xBlob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `${baseName}.xlsx`;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 15000);
+          return;
+        }
+      } catch (e) {
+        console.warn('[export] sdílení/stažení XLSX blob selhalo, padám na CSV', e);
       }
     }
 
-    // 3) CSV fallback – nejrobustnější varianta pro Messenger/Instagram apod.
+    // D) CSV fallback (obzvlášť pro Messenger/Instagram WebView)
+    const csv = aoaToCSV(data);
     const dataUri = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
 
     if (isInAppBrowser()) {
-      console.log('[export] IAB → navigace na data: CSV');
-      window.location.href = dataUri;
+      window.location.href = dataUri; // otevři obsah; uživatel uloží/naimportuje
       setTimeout(() => {
-        alert('Pokud se soubor neuloží, použij v menu aplikace volbu „Otevřít v prohlížeči“ (Safari/Chrome) a export zopakuj. In‑app prohlížeče Messenger/Instagram stahování často omezují.');
+        alert('Pro spolehlivé stažení XLSX otevři stránku v Safari/Chrome přes „Otevřít v prohlížeči“ a export zopakuj. In‑app prohlížeče Messenger/Instagram JS stahování často omezují.');
       }, 600);
       return;
     }
 
-    // běžný prohlížeč – stáhni CSV
-    console.log('[export] stahuji CSV přes <a download>');
+    // běžný prohlížeč – stáhnout CSV
     const a = document.createElement('a');
-    a.href = dataUri;
-    a.download = `${baseName}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.href = dataUri; a.download = `${baseName}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
-  // Připojení události na tlačítko po načtení DOM
+  // Připojení tlačítka po načtení DOM
   document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('exportBtn');
-    if (!btn) { console.warn('[export] Nenalezen #exportBtn'); return; }
-    btn.addEventListener('click', () => exportResults('resultsTable'));
-    console.log('[export] handler připojen k #exportBtn');
+    if (btn) btn.addEventListener('click', () => exportXLSXFirst('resultsTable'));
   });
-</script>
-
+  
+  </script>
 
 </body>
 </html>
