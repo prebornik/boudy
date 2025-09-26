@@ -275,7 +275,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <input id="searchName" placeholder="Zadej jméno..." type="text"/>
 </div>
 <div style="margin-bottom: 15px;">
-<button onclick="exportTableToExcel('resultsTable')">Export do Excelu</button>
+  <button id="btn-export-excel" type="button">Export do Excelu</button>
 </div>
 <button class="only-mobile" id="toggleCols" type="button">Zobrazit všechny sloupce</button>
 <div style="height:6px"></div>
@@ -2054,6 +2054,79 @@ function attachFbInAppHandler() {
 }
 
 document.addEventListener('DOMContentLoaded', attachFbInAppHandler);
+</script>
+
+<script>
+(function(){
+  // Detekce FB/Messenger in-app prohlížeče
+  function isFacebookInApp() {
+    const ua = navigator.userAgent || '';
+    return /FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
+  }
+
+  // Najdi první VIDITELNOU tabulku (export = přesně to, co teď vidíš)
+  function getVisibleTable() {
+    // tvoje tabulka má id="resultsTable" -> preferuj ji
+    const el = document.getElementById('resultsTable');
+    if (el) return el;
+    // fallback: první viditelná tabulka
+    const tables = document.querySelectorAll('table');
+    for (const t of tables) {
+      const s = getComputedStyle(t);
+      if (s.display !== 'none' && s.visibility !== 'hidden') return t;
+    }
+    return null;
+  }
+
+  function exportVisibleXLSX(filename = 'vysledky.xlsx') {
+    const t = getVisibleTable();
+    if (!t) throw new Error('Tabulka výsledků nebyla nalezena.');
+    const wb = XLSX.utils.table_to_book(t, { sheet: 'Výsledky' });
+    XLSX.writeFile(wb, filename); // vygeneruje a stáhne XLSX
+  }
+
+  function exportVisibleCSV(filename = 'vysledky.csv') {
+    const t = getVisibleTable();
+    if (!t) throw new Error('Tabulka výsledků nebyla nalezena.');
+    const rows = Array.from(t.querySelectorAll('tr')).filter(r=>{
+      const s=getComputedStyle(r); return s.display!=='none' && s.visibility!=='hidden';
+    }).map(r => Array.from(r.querySelectorAll('th,td')).filter(td=>{
+      const s=getComputedStyle(td); return s.display!=='none' && s.visibility!=='hidden';
+    }).map(td => '"'+(td.innerText||'').replace(/\r?\n|\r/g,' ').trim().replace(/"/g,'""')+'"').join(';')).join('\r\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([rows],{type:'text/csv;charset=utf-8'}));
+    a.download=filename; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); a.remove();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const btn = document.getElementById('btn-export-excel');
+    if (!btn) return;
+
+    btn.addEventListener('click', function(ev){
+      ev.preventDefault(); ev.stopPropagation();
+      if (isFacebookInApp()) {
+        // FB/Messenger → klientský XLSX + CSV fallback
+        try { exportVisibleXLSX('vysledky.xlsx'); }
+        catch (e) {
+          console.warn('XLSX selhal, zkouším CSV:', e);
+          try { exportVisibleCSV('vysledky.csv'); }
+          catch (e2) {
+            alert('Export se nepodařil. Otevřete stránku v externím prohlížeči (Chrome/Safari) a zkuste to znovu.');
+          }
+        }
+      } else {
+        // MIMO FB/Messenger → ponecháme TVOJI původní funkci (beze změny)
+        if (typeof exportTableToExcel === 'function') {
+          exportTableToExcel('resultsTable');
+        } else {
+          // kdyby funkce nebyla, aspoň klientský export
+          try { exportVisibleXLSX('vysledky.xlsx'); }
+          catch { exportVisibleCSV('vysledky.csv'); }
+        }
+      }
+    }, { passive:false });
+  });
+})();
 </script>
 
 </body>
