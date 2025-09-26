@@ -1797,5 +1797,88 @@ function exportTableToExcel(tableID, filename = 'vysledky.xlsx') {
   updateLabel();
 })();
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
+<script>
+// ===== Nastavení – upravte POUZE, pokud máte jiný selektor tabulky =====
+const TABLE_SELECTORS = ['#vysledky', '.results-table', 'table']; // priorita výběru tabulky
+const EXPORT_SELECTORS = [
+  '#btn-export-excel',              // běžné ID tlačítka
+  '.export-excel',                  // běžná třída
+  'a[href*="/api/export-xlsx"]'     // odkaz na serverový export (Vercel)
+];
+// =========================================================================
+
+// Detekce Facebook/Messenger in‑app browseru
+function isFacebookInApp() {
+  const ua = navigator.userAgent || '';
+  return /FBAN|FBAV|FB_IAB|Messenger/i.test(ua);
+}
+
+// Najdi první viditelnou tabulku (aby export odpovídal aktuálnímu filtru)
+function getVisibleTable() {
+  for (const sel of TABLE_SELECTORS) {
+    const candidates = document.querySelectorAll(sel);
+    for (const el of candidates) {
+      const table = el.tagName?.toLowerCase() === 'table' ? el : el.querySelector('table');
+      if (!table) continue;
+      const s1 = getComputedStyle(el);
+      const s2 = getComputedStyle(table);
+      if (s1.display !== 'none' && s1.visibility !== 'hidden' &&
+          s2.display !== 'none' && s2.visibility !== 'hidden') {
+        return table;
+      }
+    }
+  }
+  // úplný fallback: první tabulka ve stránce
+  return document.querySelector('table');
+}
+
+// Export XLSX z právě viditelné tabulky
+function exportVisibleTableToXLSX(filename = 'vysledky.xlsx') {
+  const table = getVisibleTable();
+  if (!table) throw new Error('Tabulka výsledků nebyla nalezena.');
+
+  // Použijeme table_to_book (bere jen to, co je v DOM – tedy po filtraci)
+  const wb = XLSX.utils.table_to_book(table, { sheet: 'Výsledky' });
+  XLSX.writeFile(wb, filename); // vyvolá stažení souboru
+}
+
+// Připojí „FB‑režim“ k vašemu tlačítku/odkazu – mimo FB nic nemění
+function attachFbInAppHandler() {
+  if (!isFacebookInApp()) return; // mimo FB/Messenger neděláme nic
+
+  // Najdi kandidáty na „Export do Excelu“
+  const candidates = new Set();
+
+  // 1) Výslovně zadané selektory
+  for (const sel of EXPORT_SELECTORS) {
+    document.querySelectorAll(sel).forEach(el => candidates.add(el));
+  }
+  // 2) Heuristika – odkazy s .xlsx v názvu souboru (kdyby byl custom endpoint)
+  document.querySelectorAll('a[href]').forEach(a => {
+    if (/\.(xlsx?)($|\?)/i.test(a.getAttribute('href'))) candidates.add(a);
+  });
+
+  // Připojit obsluhu jen v FB/Messenger
+  candidates.forEach(el => {
+    el.addEventListener('click', (e) => {
+      try {
+        // Zastavíme původní „stáhni z odkazu“, které FB prohlížeč často blokuje
+        e.preventDefault();
+        e.stopPropagation();
+        exportVisibleTableToXLSX('vysledky.xlsx');
+      } catch (err) {
+        console.error('Client XLSX export selhal:', err);
+        alert('Export v prohlížeči Facebook/Messenger se nepodařil. Otevřete prosím stránku v externím prohlížeči (Chrome/Safari) a zkuste to znovu.');
+      }
+    }, { capture: true });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', attachFbInAppHandler);
+</script>
+
 </body>
 </html>
