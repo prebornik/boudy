@@ -2,7 +2,6 @@
 
 <html lang="cs">
 <head>
-
   <!-- Kódování a responzivita -->
   <meta charset="utf-8">
   <meta content="width=device-width, initial-scale=1, viewport-fit=cover" name="viewport"/>
@@ -23,6 +22,7 @@
   <meta property="og:image" content="https://prebornik.github.io/boudy/assets/og-image.jpg">
 
 <style>
+
 table {
   width: 100%;
   border-collapse: collapse;
@@ -54,9 +54,9 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
   text-align: left;
 }
 </style>
-<meta charset="utf-8"/>
-<title>Výsledky závodu</title>
+
 <style>
+
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
@@ -90,6 +90,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
   /* Flex skupiny pro filtry */
   #filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
   #filters .filter-group { display: inline-flex; align-items: center; gap: 6px; }
+
   /* Na mobilech dej rok na druhý řádek */
   @media (max-width: 768px){
     #filters .filter-year { flex-basis: 100%; }
@@ -112,7 +113,9 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     }
 
   </style>
+
 <style>
+
     .btn-home {
       display: inline-block;
       padding: 8px 14px;
@@ -129,7 +132,9 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
       .btn-home { width: auto; }
     }
   </style>
+
 <style>
+
   /* Mobilní Varianta A: Pořadí, Jméno, Trať, Čas, Rok viditelné; skryj Tým a Kategorie */
   @media (min-width: 769px) { .only-mobile { display: none !important; } }
   @media (max-width: 768px) { .only-mobile { display: inline-block; } }
@@ -147,7 +152,9 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     body.show-all-cols #resultsTable { min-width: 680px; }
   }
   </style>
+
 <style id="mobile-columns-override">
+
   /* Override pro přepínač – zobraz VŠE na mobilech */
   @media (max-width: 768px){
     /* vrátí všechny th/td včetně Tým(3) a Kategorie(5) */
@@ -158,7 +165,9 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
     body.show-all-cols #resultsTable { min-width: 680px; }
   }
 </style>
+
 <style>
+
 #vysledky th, #resultsTable th {
   position: sticky;
   top: 0;
@@ -172,6 +181,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
   }
 }
 </style><style id="mobile-showall-sticky">
+
 @media (max-width: 768px) {
   /* Aktivní jen v režimu "Zobrazit všechny sloupce" */
   body.show-all-cols #resultsWrapper {
@@ -187,6 +197,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 </style>
 
 <style id="rok-center-fix">
+
 @media (max-width: 768px){
   /* celý blok Rok: + select dej na samostatný řádek a vystřeď */
   #filters .filter-year {
@@ -199,6 +210,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 </style>
 
 <style id="btt-corner-fix">
+
   /* minimalizuj mezeru a respektuj safe-area (iOS) */
   :root { --btt-gap: 4px; }
   #backToTop {
@@ -207,10 +219,42 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
   }
 </style>
 
+
+<!-- injected by helper: square scroll-to-top -->
+<style id="scrolltop-square-override">
+  /* square back-to-top button flush to bottom-right; smaller on mobile */
+  #scrollTopBtn, #backToTop {
+    bottom: 0 !important;
+    right: 0 !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    width: 48px !important;
+    height: 48px !important;
+    line-height: 48px !important;
+    padding: 0 !important;
+    text-align: center !important;
+    z-index: 9999 !important;
+  }
+  @media (max-width: 768px) {
+    #scrollTopBtn, #backToTop {
+      width: 23px !important;
+      height: 23px !important;
+      line-height: 36px !important;
+      font-size: 14px !important;
+    }
+  }
+</style>
+
 </head>
+
 <body>
+
 <h2>Výsledky závodu</h2>
+
 <div class="top-actions" style="display:flex;justify-content:center;align-items:center;gap:10px;"><a class="btn-home" href="index.html" style="margin:auto;font-size:18px;">Hlavní stránka</a></div>
+
+
+<!-- ZMĚNA: Sekce filtrů (kategorie/trať/rok + vyhledávání) -->
 
 <div id="filters">
   <div class="filter-group">
@@ -279,12 +323,18 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <label for="searchName">Vyhledat jméno:</label>
 <input id="searchName" placeholder="Zadej jméno..." type="text"/>
 </div>
+
 <div style="margin-bottom: 15px;">
-  <button id="exportBtn" type="button">Export do Excelu</button>
+<button id="exportBtn" type="button">Export do Excelu</button>
 </div>
+
 <button class="only-mobile" id="toggleCols" type="button">Zobrazit všechny sloupce</button>
+
 <div style="height:6px"></div>
-<div id="resultsWrapper"><table id="resultsTable">
+
+<div id="resultsWrapper">
+<table id="resultsTable">
+
 <thead>
 <tr>
 <th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Pořadí</th>
@@ -296,6 +346,7 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <th style="position:sticky;top:0;z-index:2;background:#e0e0e0;">Rok</th>
 </tr>
 </thead>
+
 <tbody>
   <tr><td></td><td>Ina Málková</td><td>Liberec</td><td>100 m</td><td>batolata-holky</td><td>0:17</td><td>2023</td></tr>
 <tr><td></td><td>Sofie Povýšilová</td><td>AC Slovan Liberec</td><td>100 m</td><td>batolata-holky</td><td>0:19</td><td>2023</td></tr>
@@ -1183,7 +1234,10 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
 <tr><td></td><td>Králová Adéla</td><td>AC Slovan Liberec</td><td>3,9 km</td><td>ženy</td><td>22:15</td><td>2011</td></tr>
 <tr><td></td><td>Lejsková Dominika</td><td>Rekreačníci</td><td>3,9 km</td><td>ženy</td><td>22:54</td><td>2011</td></tr>
 <tr><td></td><td>Stanovská Šárka</td><td>Rekreačníci</td><td>3,9 km</td><td>ženy</td><td>22:54</td><td>2011</td></tr>
-</tbody></table></div>
+</tbody>
+</table>
+</div>
+
 <script>
 
 (function cleanupBackslashes(){
@@ -1477,9 +1531,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // první vykreslení
   render();
 });
-// === Konec cleaned scripts ===
 </script>
+
 <script>
+
 // === Back-To-Top button (bez zásahu do HTML) ===
 (function initBackToTop(){
   const style = document.createElement('style');
@@ -1528,6 +1583,7 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <script id="backtotop-mobile-scroll-patch">
+
 (function(){
   const btn = document.getElementById('backToTop');
   if(!btn) return;
@@ -1566,7 +1622,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initial
   onScroll();
 })();
-</script><script>
+</script>
+
+<script>
+
 (function initToggleAllCols(){
   const btn = document.getElementById('toggleCols');
   if (!btn) return;
@@ -1579,10 +1638,13 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
-<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js">
+</script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.20.3/dist/xlsx.full.min.js">
+</script>
 
 <script>
+
   function loadScriptOnce(src) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
