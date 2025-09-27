@@ -1773,8 +1773,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <script>
-/* Export do Excelu s podporou FB/Messenger in‑app: otevření do externího prohlížeče
-   a auto-exportem viditelné (filtrované) tabulky. Zachovává stávající vzhled i filtry. */
+/* Export do Excelu – oprava XLS (MSO šablona) + spolehlivější FB/Messenger handlování */
 (function () {
   const EXPORT_FILENAME = 'vysledky.xls';
 
@@ -1787,107 +1786,121 @@ document.addEventListener('DOMContentLoaded', () => {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
-  // Vytvoření HTML tabulky pouze z VIDITELNÝCH řádků (po filtrech)
-  function buildVisibleTableHTML() {
+  function buildVisibleTableInnerHtml() {
     const table = document.getElementById('resultsTable');
     if (!table) return '';
-    // hlavička
-    let html = '<table>';
+    // Pokud je tabulka bez <thead>, zachováme jen první řádek jako hlavičku
+    let theadHtml = '';
     const thead = table.querySelector('thead');
-    if (thead) html += '<thead>' + thead.innerHTML + '</thead>';
-    // tělo
-    html += '<tbody>';
+    if (thead) theadHtml = '<thead>' + thead.innerHTML + '</thead>';
+
+    let bodyHtml = '';
     const rows = table.querySelectorAll('tbody tr').length
       ? table.querySelectorAll('tbody tr')
       : table.querySelectorAll('tr:not(thead tr):not(tfoot tr)');
 
     rows.forEach(tr => {
       const cs = window.getComputedStyle(tr);
-      if ((cs && cs.display === 'none') || tr.hidden) return; // přeskočit skryté řádky
+      if ((cs && cs.display === 'none') || tr.hidden) return;
       let row = '<tr>';
       Array.from(tr.cells).forEach(td => {
         const text = (td.innerText || td.textContent || '').replace(/\s+/g, ' ').trim();
         row += '<td>' + escapeHtml(text) + '</td>';
       });
       row += '</tr>';
-      html += row;
+      bodyHtml += row;
     });
 
-    html += '</tbody></table>';
-    return '<html><head><meta charset="UTF-8"></head><body>' + html + '</body></html>';
+    return theadHtml + '<tbody>' + bodyHtml + '</tbody>';
   }
 
-  // Stažení XLS hned teď (běžný prohlížeč nebo externí po přesměrování)
+  // MS Office HTML šablona pro XLS (méně varování, lepší kompatibilita)
+  function buildExcelHTML() {
+    const tableInner = buildVisibleTableInnerHtml();
+    const template = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:x="urn:schemas-microsoft-com:office:excel"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta http-equiv="Content-Type" content="application/vnd.ms-excel; charset=UTF-8" />
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Vysledky</x:Name>
+        <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+</head>
+<body>
+<table border="1">${tableInner}</table>
+</body></html>`;
+    return template;
+  }
+
+  // XLS stažení: používáme base64 data URI (spolehlivější pro Excel než Blob u některých verzí)
   function downloadExcelNow() {
-    const html = buildVisibleTableHTML();
-    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel' });
+    const html = buildExcelHTML();
+    const b64 = btoa(unescape(encodeURIComponent(html)));
+    const uri = 'data:application/vnd.ms-excel;base64,' + b64;
     const a = document.createElement('a');
+    a.href = uri;
     a.download = EXPORT_FILENAME;
-    a.href = URL.createObjectURL(blob);
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-      a.remove();
-    }, 1200);
+    setTimeout(() => a.remove(), 2000);
   }
 
-  // Otevření téže URL v externím prohlížeči + auto‑export po načtení
+  // Otevření do externího prohlížeče (Android: intent se záložní URL, iOS: nové okno)
   function openExternAndAutoExport() {
-    const url = new URL(window.location.href);
-    url.searchParams.set('autoxls', '1');
+    const target = new URL(window.location.href);
+    target.searchParams.set('autoxls', '1');
 
     if (isAndroid) {
-      // Android: Intent do Chrome → FB/Messenger ukáže hlášku "Chystáte se z aplikace odejít…"
-      const intentUrl =
-        'intent://' +
-        url.href.replace(/^https?:\/\//, '') +
-        '#Intent;scheme=' + location.protocol.replace(':', '') +
-        ';package=com.android.chrome;end';
-      window.location.href = intentUrl;
+      // intent:// s fallback URL (Chrome for Developers doporučení)
+      const intent = 'intent://' + target.href.replace(/^https?:\/\//, '') +
+        '#Intent;scheme=' + location.protocol.replace(':','') +
+        ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(target.href) +
+        ';end';
+      window.location.href = intent;
     } else {
-      // iOS: pokus o otevření v Safari (FB nabídne "Otevřít v Safari")
+      // iOS FB IAB: otevřeme nové okno; FB typicky nabídne "Otevřít v Safari"
       const a = document.createElement('a');
-      a.href = url.href;
+      a.href = target.href;
       a.target = '_blank';
       a.rel = 'noopener';
       document.body.appendChild(a);
       a.click();
       setTimeout(() => a.remove(), 200);
-      setTimeout(() => {
-        alert('Pokud se stahování nespustí, otevři prosím tuto stránku v Safari (menu „…“ → Otevřít v Safari) a znovu klepni na Export.');
-      }, 1200);
+      // drobný hint pro případ blokace
+      setTimeout(() => { try { alert('Pokud se stahování nespustí, klepni prosím vpravo nahoře na \"…\" a zvol \"Otevřít v Safari\".'); } catch(e){} }, 1200);
     }
   }
 
   function handleExcelExport(ev) {
-    // Zastavíme původní obsluhu, aby nedošlo k dvojímu stažení (pokud má stránka vlastní handler)
     ev.preventDefault();
     ev.stopImmediatePropagation();
 
-    // FB/Messenger/Instagram in‑app → přesměrovat ven a auto‑exportovat
     if (isInApp) {
       openExternAndAutoExport();
       return false;
     }
-    // běžný prohlížeč → rovnou vyexportovat viditelná data
     downloadExcelNow();
   }
 
-  // Při kliknutí na tlačítko Export
   document.addEventListener('click', function (ev) {
     const btn = ev.target.closest('#exportBtn');
     if (btn) handleExcelExport(ev);
   }, true);
 
-  // Pokud stránka byla otevřena s ?autoxls=1 (z in‑app po hlášce), auto‑spustit export
   document.addEventListener('DOMContentLoaded', function () {
     const params = new URLSearchParams(location.search);
-    if (params.get('autoxls') === '1') {
-      // kratičké zpoždění, aby se případné filtry domalovaly
-      setTimeout(downloadExcelNow, 450);
-    }
+    if (params.get('autoxls') === '1') setTimeout(downloadExcelNow, 500);
   });
 })();
 </script>
