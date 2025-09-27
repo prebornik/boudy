@@ -237,8 +237,8 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
   }
   @media (max-width: 768px) {
     #scrollTopBtn, #backToTop {
-      width: 27px !important;
-      height: 27px !important;
+      width: 28px !important;
+      height: 28px !important;
       line-height: 36px !important;
       font-size: 14px !important;
     }
@@ -1771,8 +1771,9 @@ document.addEventListener('DOMContentLoaded', () => {
   
   </script>
 
+
 <script>
-// Dynamické načtení SheetJS (XLSX) a export do .xlsx + FB/Messenger přesměrování
+// v7: .xlsx export – zobrazuj bez hodin, když jsou 0 (m:ss[.d]), jinak h:mm:ss[.d]
 (function(){
   const EXPORT_FILENAME = 'vysledky.xlsx';
   const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js';
@@ -1791,18 +1792,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function normalizeName(s){
+    return (s||'').toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  }
+
+  function parseTimeWithDecimals(str){
+    if (str == null) return null;
+    let s = String(str).trim();
+    if (!s) return null;
+    s = s.replace(/\u00A0/g,' ').replace(/\s+/g,'');
+    s = s.replace(/,/g, '.');
+
+    let h=0, m=0, secStr = '', dec = 0;
+    if (s.includes(':')){
+      const parts = s.split(':');
+      if (parts.length === 2){
+        m = parseInt(parts[0]||'0',10);
+        secStr = parts[1]||'0';
+      } else {
+        h = parseInt(parts[0]||'0',10);
+        m = parseInt(parts[1]||'0',10);
+        secStr = parts.slice(2).join(':')||'0';
+      }
+    } else {
+      secStr = s; // čisté sekundy
+    }
+
+    const mDec = /\.(\d+)/.exec(secStr);
+    if (mDec) dec = Math.min(3, mDec[1].length);
+
+    const sec = parseFloat(secStr);
+    if (isNaN(h)||isNaN(m)||isNaN(sec)) return null;
+    const totalSeconds = h*3600 + m*60 + sec;
+    return { val: totalSeconds/86400, dec };
+  }
+
   function buildVisibleTableForXlsx(){
     const srcTable = document.getElementById('resultsTable');
     if(!srcTable) return null;
 
     const outTable = document.createElement('table');
 
-    // thead kopie
     const thead = srcTable.querySelector('thead');
-    if (thead){
-      const th = thead.cloneNode(true);
-      outTable.appendChild(th);
-    }
+    if (thead){ outTable.appendChild(thead.cloneNode(true)); }
 
     const tbody = document.createElement('tbody');
     const srcRows = srcTable.querySelectorAll('tbody tr').length
@@ -1811,7 +1843,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     srcRows.forEach((tr)=>{
       const cs = window.getComputedStyle(tr);
-      if ((cs && cs.display === 'none') || tr.hidden) return; // jen viditelné
+      if ((cs && cs.display === 'none') || tr.hidden) return;
       const newTr = document.createElement('tr');
       Array.from(tr.cells).forEach(td => {
         const cell = document.createElement('td');
@@ -1825,11 +1857,44 @@ document.addEventListener('DOMContentLoaded', () => {
     return outTable;
   }
 
+  function fixTimeColumn(ws){
+    if (!ws || !ws['!ref']) return;
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    let casCol = -1;
+    for (let c = range.s.c; c <= range.e.c; c++){
+      const addr = XLSX.utils.encode_cell({r: range.s.r, c});
+      const cell = ws[addr];
+      const val = cell && (cell.v!=null ? String(cell.v) : '');
+      if (normalizeName(val) === 'cas') { casCol = c; break; }
+    }
+    if (casCol === -1) return;
+
+    for (let r = range.s.r+1; r <= range.e.r; r++){
+      const addr = XLSX.utils.encode_cell({r, c: casCol});
+      const cell = ws[addr];
+      if (!cell) continue;
+      const raw = cell.v;
+      const parsed = parseTimeWithDecimals(raw);
+      if (!parsed) { cell.t = 's'; continue; }
+      const { val, dec } = parsed;
+      cell.t = 'n';
+      cell.v = val;
+      const totalSeconds = val * 86400;
+      const h = Math.floor(totalSeconds / 3600 + 1e-9);
+      // Pokud je hodinová složka 0 → použij m:ss[.d]; jinak h:mm:ss[.d]
+      const base = h > 0 ? 'h:mm:ss' : 'm:ss';
+      cell.z = base + (dec ? ('.' + '0'.repeat(dec)) : '');
+    }
+  }
+
   async function downloadXlsxNow(){
     await loadScript(XLSX_URL);
     const table = buildVisibleTableForXlsx();
     if(!table){ alert('Tabulka výsledků nebyla nalezena.'); return; }
-    const wb = XLSX.utils.table_to_book(table, { sheet: 'Vysledky' });
+    const ws = XLSX.utils.table_to_sheet(table, { raw: true });
+    fixTimeColumn(ws);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Vysledky');
     XLSX.writeFile(wb, EXPORT_FILENAME, { compression: true });
   }
 
