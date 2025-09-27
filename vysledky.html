@@ -237,8 +237,8 @@ td:nth-child(2), td:nth-child(3), td:nth-child(4) {
   }
   @media (max-width: 768px) {
     #scrollTopBtn, #backToTop {
-      width: 28px !important;
-      height: 28px !important;
+      width: 29px !important;
+      height: 29px !important;
       line-height: 36px !important;
       font-size: 14px !important;
     }
@@ -1773,162 +1773,98 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <script>
-// v7: .xlsx export – zobrazuj bez hodin, když jsou 0 (m:ss[.d]), jinak h:mm:ss[.d]
+// v8: Zachování filtrů při přesměrování z FB/Messengeru – přenášení stavu přes URL a auto‑aplikace před exportem
 (function(){
-  const EXPORT_FILENAME = 'vysledky.xlsx';
-  const XLSX_URL = 'https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js';
+  const qs = new URLSearchParams(location.search);
 
-  const ua = navigator.userAgent || navigator.vendor || window.opera;
-  const isAndroid = /Android/i.test(ua);
-  const isiOS = /iPhone|iPad|iPod/i.test(ua);
-  const isInApp = /(FBAN|FBAV|FB_IAB|Instagram|Messenger)/i.test(ua);
+  function $(sel){ return document.querySelector(sel); }
 
-  function loadScript(src){
-    return new Promise(function(resolve, reject){
-      if (window.XLSX) return resolve();
-      const s = document.createElement('script');
-      s.src = src; s.async = true; s.onload = () => resolve(); s.onerror = reject;
-      document.head.appendChild(s);
-    });
+  function getFilterState(){
+    const cat = $('#category');
+    const trk = $('#track');
+    const yr  = $('#year');
+    const q   = $('#searchName');
+    return {
+      cat: cat ? cat.value : '',
+      trk: trk ? trk.value : '',
+      yr:  yr  ? yr.value  : '',
+      q:   q   ? q.value   : ''
+    };
   }
 
-  function normalizeName(s){
-    return (s||'').toString().trim().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  function setIfExists(sel, val){
+    const el = $(sel);
+    if (!el || val == null || val === '') return;
+    // pokud hodnota v <select> není, zkus najít option shodné textem (pro jistotu)
+    if (el.tagName === 'SELECT'){
+      let opt = Array.from(el.options).find(o => o.value === val);
+      if (!opt) opt = Array.from(el.options).find(o => (o.text||'').trim() === val);
+      if (opt) el.value = opt.value; else return; // když nic nenašlo, neměň
+    } else {
+      el.value = val;
+    }
+    // vyvolej běžné eventy, aby se spustilo existující filtrování
+    el.dispatchEvent(new Event('change', {bubbles:true}));
+    el.dispatchEvent(new Event('input',  {bubbles:true}));
   }
 
-  function parseTimeWithDecimals(str){
-    if (str == null) return null;
-    let s = String(str).trim();
-    if (!s) return null;
-    s = s.replace(/\u00A0/g,' ').replace(/\s+/g,'');
-    s = s.replace(/,/g, '.');
+  async function applyFiltersFromQuery(){
+    const cat = qs.get('cat');
+    const trk = qs.get('trk');
+    const yr  = qs.get('yr');
+    const q   = qs.get('q');
+    if (cat) setIfExists('#category', cat);
+    if (trk) setIfExists('#track',    trk);
+    if (yr)  setIfExists('#year',     yr);
+    if (q)   setIfExists('#searchName', q);
 
-    let h=0, m=0, secStr = '', dec = 0;
-    if (s.includes(':')){
-      const parts = s.split(':');
-      if (parts.length === 2){
-        m = parseInt(parts[0]||'0',10);
-        secStr = parts[1]||'0';
+    // Pokud má stránka globální filtrovací funkci, zkus ji spustit
+    if (typeof window.applyFilters === 'function') {
+      try { window.applyFilters(); } catch(e){}
+    }
+    // počkej 2 animační snímky, ať se DOM stihne upravit
+    await new Promise(r => requestAnimationFrame(()=>requestAnimationFrame(r)));
+  }
+
+  // Přepiš externí otevření tak, aby doplnilo stav filtrů do URL
+  if (typeof window.openExternAndAutoExport === 'function'){
+    const prev = window.openExternAndAutoExport;
+    window.openExternAndAutoExport = function(){
+      const url = new URL(window.location.href);
+      url.searchParams.set('autoxls','1');
+      const st = getFilterState();
+      if (st.cat) url.searchParams.set('cat', st.cat);
+      if (st.trk) url.searchParams.set('trk', st.trk);
+      if (st.yr)  url.searchParams.set('yr',  st.yr);
+      if (st.q)   url.searchParams.set('q',   st.q);
+
+      // Znovupoužij původní metodu, ale s naší URL
+      const ua = navigator.userAgent||navigator.vendor||window.opera;
+      const isAndroid = /Android/i.test(ua);
+      if (isAndroid){
+        const intent = 'intent://' + url.href.replace(/^https?:\/\//,'') +
+          '#Intent;scheme=' + location.protocol.replace(':','') +
+          ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url.href) + ';end';
+        location.href = intent;
       } else {
-        h = parseInt(parts[0]||'0',10);
-        m = parseInt(parts[1]||'0',10);
-        secStr = parts.slice(2).join(':')||'0';
+        const a = document.createElement('a'); a.href = url.href; a.target='_blank'; a.rel='noopener';
+        document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),200);
       }
-    } else {
-      secStr = s; // čisté sekundy
-    }
-
-    const mDec = /\.(\d+)/.exec(secStr);
-    if (mDec) dec = Math.min(3, mDec[1].length);
-
-    const sec = parseFloat(secStr);
-    if (isNaN(h)||isNaN(m)||isNaN(sec)) return null;
-    const totalSeconds = h*3600 + m*60 + sec;
-    return { val: totalSeconds/86400, dec };
-  }
-
-  function buildVisibleTableForXlsx(){
-    const srcTable = document.getElementById('resultsTable');
-    if(!srcTable) return null;
-
-    const outTable = document.createElement('table');
-
-    const thead = srcTable.querySelector('thead');
-    if (thead){ outTable.appendChild(thead.cloneNode(true)); }
-
-    const tbody = document.createElement('tbody');
-    const srcRows = srcTable.querySelectorAll('tbody tr').length
-      ? srcTable.querySelectorAll('tbody tr')
-      : srcTable.querySelectorAll('tr:not(thead tr):not(tfoot tr)');
-
-    srcRows.forEach((tr)=>{
-      const cs = window.getComputedStyle(tr);
-      if ((cs && cs.display === 'none') || tr.hidden) return;
-      const newTr = document.createElement('tr');
-      Array.from(tr.cells).forEach(td => {
-        const cell = document.createElement('td');
-        cell.textContent = (td.innerText || td.textContent || '').replace(/\s+/g,' ').trim();
-        newTr.appendChild(cell);
-      });
-      tbody.appendChild(newTr);
-    });
-
-    outTable.appendChild(tbody);
-    return outTable;
-  }
-
-  function fixTimeColumn(ws){
-    if (!ws || !ws['!ref']) return;
-    const range = XLSX.utils.decode_range(ws['!ref']);
-    let casCol = -1;
-    for (let c = range.s.c; c <= range.e.c; c++){
-      const addr = XLSX.utils.encode_cell({r: range.s.r, c});
-      const cell = ws[addr];
-      const val = cell && (cell.v!=null ? String(cell.v) : '');
-      if (normalizeName(val) === 'cas') { casCol = c; break; }
-    }
-    if (casCol === -1) return;
-
-    for (let r = range.s.r+1; r <= range.e.r; r++){
-      const addr = XLSX.utils.encode_cell({r, c: casCol});
-      const cell = ws[addr];
-      if (!cell) continue;
-      const raw = cell.v;
-      const parsed = parseTimeWithDecimals(raw);
-      if (!parsed) { cell.t = 's'; continue; }
-      const { val, dec } = parsed;
-      cell.t = 'n';
-      cell.v = val;
-      const totalSeconds = val * 86400;
-      const h = Math.floor(totalSeconds / 3600 + 1e-9);
-      // Pokud je hodinová složka 0 → použij m:ss[.d]; jinak h:mm:ss[.d]
-      const base = h > 0 ? 'h:mm:ss' : 'm:ss';
-      cell.z = base + (dec ? ('.' + '0'.repeat(dec)) : '');
     }
   }
 
-  async function downloadXlsxNow(){
-    await loadScript(XLSX_URL);
-    const table = buildVisibleTableForXlsx();
-    if(!table){ alert('Tabulka výsledků nebyla nalezena.'); return; }
-    const ws = XLSX.utils.table_to_sheet(table, { raw: true });
-    fixTimeColumn(ws);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Vysledky');
-    XLSX.writeFile(wb, EXPORT_FILENAME, { compression: true });
-  }
-
-  function openExternAndAutoExport(){
-    const target = new URL(window.location.href);
-    target.searchParams.set('autoxls', '1');
-
-    if (isAndroid){
-      const intent = 'intent://' + target.href.replace(/^https?:\/\//,'') +
-        '#Intent;scheme=' + location.protocol.replace(':','') +
-        ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(target.href) + ';end';
-      window.location.href = intent;
-    } else {
-      const a = document.createElement('a');
-      a.href = target.href; a.target = '_blank'; a.rel='noopener';
-      document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),200);
-      setTimeout(()=>{ try{ alert('Pokud se stahování nespustí, klepni vpravo nahoře na „…“ a zvol „Otevřít v Safari“, pak se export spustí automaticky.'); }catch(e){} }, 1000);
+  // Když jsme otevřeni s ?autoxls=1, nejprve aplikuj přenesené filtry a teprve pak exportuj
+  document.addEventListener('DOMContentLoaded', async function(){
+    if (qs.get('autoxls') === '1'){
+      await applyFiltersFromQuery();
+      // export spustí existující funkce z v7
+      if (typeof window.downloadXlsxNow === 'function') {
+        setTimeout(()=>window.downloadXlsxNow(), 200);
+      } else if (typeof window.handleExcelExport === 'function'){
+        // fallback: simulace kliku pro případ jiné struktury
+        try { window.handleExcelExport(); } catch(e){}
+      }
     }
-  }
-
-  async function handleExcelExport(ev){
-    ev.preventDefault(); ev.stopImmediatePropagation();
-    if (isInApp){ openExternAndAutoExport(); return false; }
-    await downloadXlsxNow();
-  }
-
-  document.addEventListener('click', function(ev){
-    const btn = ev.target.closest('#exportBtn');
-    if (btn) handleExcelExport(ev);
-  }, true);
-
-  document.addEventListener('DOMContentLoaded', function(){
-    const params = new URLSearchParams(location.search);
-    if (params.get('autoxls') === '1') setTimeout(()=>{ downloadXlsxNow(); }, 400);
   });
 })();
 </script>
