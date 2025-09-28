@@ -1775,9 +1775,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <script>
-/* v7-minfix: Přenos filtrů bez zásahu do navigace – pouze doplní filtry do URL a po načtení je aplikuje. */
+/* v7-final: FB/Messenger in-app → pouze INTENT ven (Android) / nové okno (iOS),
+   přenos filtrů přes URL, venku auto-aplikace filtrů a auto-export.
+   Minimal-invasive: nesahá na ostatní skripty. */
 (function(){
   const ua = navigator.userAgent || navigator.vendor || window.opera;
+  const isAndroid = /Android/i.test(ua);
+  const isiOS = /iPhone|iPad|iPod/i.test(ua);
   const isInApp = /(FBAN|FBAV|FB_IAB|Instagram|Messenger)/i.test(ua);
 
   function $(s){ return document.querySelector(s); }
@@ -1790,47 +1794,73 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
   function setIfExists(sel, val){
-    const el = $(sel);
-    if (!el || !val) return;
+    const el = $(sel); if (!el || !val) return false;
     if (el.tagName === 'SELECT'){
       let opt = Array.from(el.options).find(o => o.value === val)
              || Array.from(el.options).find(o => (o.text||'').trim() === val);
-      if (!opt) return; el.value = opt.value;
-    } else {
-      el.value = val;
-    }
+      if (!opt) return false; el.value = opt.value;
+    } else { el.value = val; }
     el.dispatchEvent(new Event('change',{bubbles:true}));
     el.dispatchEvent(new Event('input',{bubbles:true}));
+    return true;
+  }
+  async function applyFiltersFromQuery(){
+    const p = new URLSearchParams(location.search);
+    const applied = [
+      setIfExists('#category',   p.get('cat')),
+      setIfExists('#track',      p.get('trk')),
+      setIfExists('#year',       p.get('yr')),
+      setIfExists('#searchName', p.get('q')),
+    ].some(Boolean);
+    if (typeof window.applyFilters === 'function'){ try { window.applyFilters(); } catch(e){} }
+    await new Promise(r => requestAnimationFrame(()=>requestAnimationFrame(r)));
+    return applied;
   }
 
-  // A) Před exportem v in‑app pouze zapíšeme filtry do URL – original handler provede přesměrování
+  // A) In‑app: zachytit klik na Export, přenést filtry, poslat uživatele ven (bez fallbacku dovnitř IAB)
   document.addEventListener('click', function(ev){
     const btn = ev.target.closest('#exportBtn');
     if (!btn || !isInApp) return;
-    try {
-      const url = new URL(location.href);
-      const st = getState();
-      if (st.cat) url.searchParams.set('cat', st.cat); else url.searchParams.delete('cat');
-      if (st.trk) url.searchParams.set('trk', st.trk); else url.searchParams.delete('trk');
-      if (st.yr)  url.searchParams.set('yr',  st.yr);  else url.searchParams.delete('yr');
-      if (st.q)   url.searchParams.set('q',   st.q);   else url.searchParams.delete('q');
-      history.replaceState(null, '', url.href);
-    } catch(e) { /* ignore */ }
-    // neblokujeme původní navigaci – v7 ji vyřídí sama
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+
+    const url = new URL(location.href);
+    url.searchParams.set('autoxls','1');
+    const st = getState();
+    if (st.cat) url.searchParams.set('cat', st.cat);
+    if (st.trk) url.searchParams.set('trk', st.trk);
+    if (st.yr)  url.searchParams.set('yr',  st.yr);
+    if (st.q)   url.searchParams.set('q',   st.q);
+
+    if (isAndroid){
+      const intent = 'intent://' + url.href.replace(/^https?:\/\//,'') +
+        '#Intent;scheme=' + (location.protocol.replace(':','')) +
+        ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url.href) + ';end';
+      // přímé přesměrování na intent (stejné jako u v7)
+      window.location.href = intent;
+      // pokud FB intent nezobrazí, ukaž stručnou instrukci
+      setTimeout(()=>{ try { if (!document.hidden) alert('Pokud se nic nestalo, otevři prosím menu „…“ a zvol „Otevřít v prohlížeči“.'); } catch(e){} }, 1500);
+      return;
+    }
+    if (isiOS){
+      const a = document.createElement('a');
+      a.href = url.href; a.target='_blank'; a.rel='noopener'; a.style.display='none';
+      document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),50);
+      return;
+    }
+    // jinak jen otevři URL
+    location.href = url.href;
   }, true);
 
-  // B) Po načtení (externí prohlížeč s ?autoxls=1): aplikuj filtry hned, pak nech v7 spustit export
-  document.addEventListener('DOMContentLoaded', function(){
+  // B) Venku: když je ?autoxls=1 → aplikuj filtry a automaticky spusť export
+  document.addEventListener('DOMContentLoaded', async function(){
     const p = new URLSearchParams(location.search);
-    if (p.get('autoxls') === '1'){
-      setIfExists('#category',   p.get('cat'));
-      setIfExists('#track',      p.get('trk'));
-      setIfExists('#year',       p.get('yr'));
-      setIfExists('#searchName', p.get('q'));
-      if (typeof window.applyFilters === 'function') {
-        try { window.applyFilters(); } catch(e){}
-      }
-    }
+    if (p.get('autoxls') !== '1') return;
+    if (window.__autoExportDone) return; window.__autoExportDone = true;
+
+    await applyFiltersFromQuery();
+    if (typeof window.downloadXlsxNow === 'function') return setTimeout(()=>window.downloadXlsxNow(), 200);
+    const btn = $('#exportBtn'); if (btn) setTimeout(()=>{ try{ btn.click(); }catch(e){} }, 200);
   });
 })();
 </script>
