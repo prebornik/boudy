@@ -1775,8 +1775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 <script>
-/* v7-fix: Přenos filtrů při odchodu z FB/Messengeru + auto-aplikace před exportem.
-   Nepřebíjí původní logiku – jen doplňuje parametry do URL a aplikuje je, než se spustí autoxls. */
+/* v7-minfix: Přenos filtrů bez zásahu do navigace – pouze doplní filtry do URL a po načtení je aplikuje. */
 (function(){
   const ua = navigator.userAgent || navigator.vendor || window.opera;
   const isInApp = /(FBAN|FBAV|FB_IAB|Instagram|Messenger)/i.test(ua);
@@ -1804,25 +1803,23 @@ document.addEventListener('DOMContentLoaded', () => {
     el.dispatchEvent(new Event('input',{bubbles:true}));
   }
 
-  // A) Předáme filtry do URL dřív, než původní handler sestaví autoxls URL
+  // A) Před exportem v in‑app pouze zapíšeme filtry do URL – original handler provede přesměrování
   document.addEventListener('click', function(ev){
     const btn = ev.target.closest('#exportBtn');
     if (!btn || !isInApp) return;
-
     try {
       const url = new URL(location.href);
       const st = getState();
-      if (st.cat) url.searchParams.set('cat', st.cat);
-      if (st.trk) url.searchParams.set('trk', st.trk);
-      if (st.yr)  url.searchParams.set('yr',  st.yr);
-      if (st.q)   url.searchParams.set('q',   st.q);
-      // nezasahujeme do autoxls – přidá ho původní kód
+      if (st.cat) url.searchParams.set('cat', st.cat); else url.searchParams.delete('cat');
+      if (st.trk) url.searchParams.set('trk', st.trk); else url.searchParams.delete('trk');
+      if (st.yr)  url.searchParams.set('yr',  st.yr);  else url.searchParams.delete('yr');
+      if (st.q)   url.searchParams.set('q',   st.q);   else url.searchParams.delete('q');
       history.replaceState(null, '', url.href);
     } catch(e) { /* ignore */ }
-    // neblokujeme původní klik – původní handler provede přesměrování
+    // neblokujeme původní navigaci – v7 ji vyřídí sama
   }, true);
 
-  // B) Venku s ?autoxls=1 – aplikuj filtry hned po načtení, než se spustí autoexport
+  // B) Po načtení (externí prohlížeč s ?autoxls=1): aplikuj filtry hned, pak nech v7 spustit export
   document.addEventListener('DOMContentLoaded', function(){
     const p = new URLSearchParams(location.search);
     if (p.get('autoxls') === '1'){
