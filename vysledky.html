@@ -1772,97 +1772,66 @@ document.addEventListener('DOMContentLoaded', () => {
   </script>
 
 
+
+
 <script>
-// v8: Zachování filtrů při přesměrování z FB/Messengeru – přenášení stavu přes URL a auto‑aplikace před exportem
+/* v7-fix: Přenos filtrů při odchodu z FB/Messengeru + auto-aplikace před exportem.
+   Nepřebíjí původní logiku – jen doplňuje parametry do URL a aplikuje je, než se spustí autoxls. */
 (function(){
-  const qs = new URLSearchParams(location.search);
+  const ua = navigator.userAgent || navigator.vendor || window.opera;
+  const isInApp = /(FBAN|FBAV|FB_IAB|Instagram|Messenger)/i.test(ua);
 
-  function $(sel){ return document.querySelector(sel); }
-
-  function getFilterState(){
-    const cat = $('#category');
-    const trk = $('#track');
-    const yr  = $('#year');
-    const q   = $('#searchName');
+  function $(s){ return document.querySelector(s); }
+  function getState(){
     return {
-      cat: cat ? cat.value : '',
-      trk: trk ? trk.value : '',
-      yr:  yr  ? yr.value  : '',
-      q:   q   ? q.value   : ''
+      cat: $('#category')?.value || '',
+      trk: $('#track')?.value || '',
+      yr:  $('#year')?.value  || '',
+      q:   $('#searchName')?.value || ''
     };
   }
-
   function setIfExists(sel, val){
     const el = $(sel);
-    if (!el || val == null || val === '') return;
-    // pokud hodnota v <select> není, zkus najít option shodné textem (pro jistotu)
+    if (!el || !val) return;
     if (el.tagName === 'SELECT'){
-      let opt = Array.from(el.options).find(o => o.value === val);
-      if (!opt) opt = Array.from(el.options).find(o => (o.text||'').trim() === val);
-      if (opt) el.value = opt.value; else return; // když nic nenašlo, neměň
+      let opt = Array.from(el.options).find(o => o.value === val)
+             || Array.from(el.options).find(o => (o.text||'').trim() === val);
+      if (!opt) return; el.value = opt.value;
     } else {
       el.value = val;
     }
-    // vyvolej běžné eventy, aby se spustilo existující filtrování
-    el.dispatchEvent(new Event('change', {bubbles:true}));
-    el.dispatchEvent(new Event('input',  {bubbles:true}));
+    el.dispatchEvent(new Event('change',{bubbles:true}));
+    el.dispatchEvent(new Event('input',{bubbles:true}));
   }
 
-  async function applyFiltersFromQuery(){
-    const cat = qs.get('cat');
-    const trk = qs.get('trk');
-    const yr  = qs.get('yr');
-    const q   = qs.get('q');
-    if (cat) setIfExists('#category', cat);
-    if (trk) setIfExists('#track',    trk);
-    if (yr)  setIfExists('#year',     yr);
-    if (q)   setIfExists('#searchName', q);
+  // A) Předáme filtry do URL dřív, než původní handler sestaví autoxls URL
+  document.addEventListener('click', function(ev){
+    const btn = ev.target.closest('#exportBtn');
+    if (!btn || !isInApp) return;
 
-    // Pokud má stránka globální filtrovací funkci, zkus ji spustit
-    if (typeof window.applyFilters === 'function') {
-      try { window.applyFilters(); } catch(e){}
-    }
-    // počkej 2 animační snímky, ať se DOM stihne upravit
-    await new Promise(r => requestAnimationFrame(()=>requestAnimationFrame(r)));
-  }
-
-  // Přepiš externí otevření tak, aby doplnilo stav filtrů do URL
-  if (typeof window.openExternAndAutoExport === 'function'){
-    const prev = window.openExternAndAutoExport;
-    window.openExternAndAutoExport = function(){
-      const url = new URL(window.location.href);
-      url.searchParams.set('autoxls','1');
-      const st = getFilterState();
+    try {
+      const url = new URL(location.href);
+      const st = getState();
       if (st.cat) url.searchParams.set('cat', st.cat);
       if (st.trk) url.searchParams.set('trk', st.trk);
       if (st.yr)  url.searchParams.set('yr',  st.yr);
       if (st.q)   url.searchParams.set('q',   st.q);
+      // nezasahujeme do autoxls – přidá ho původní kód
+      history.replaceState(null, '', url.href);
+    } catch(e) { /* ignore */ }
+    // neblokujeme původní klik – původní handler provede přesměrování
+  }, true);
 
-      // Znovupoužij původní metodu, ale s naší URL
-      const ua = navigator.userAgent||navigator.vendor||window.opera;
-      const isAndroid = /Android/i.test(ua);
-      if (isAndroid){
-        const intent = 'intent://' + url.href.replace(/^https?:\/\//,'') +
-          '#Intent;scheme=' + location.protocol.replace(':','') +
-          ';package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url.href) + ';end';
-        location.href = intent;
-      } else {
-        const a = document.createElement('a'); a.href = url.href; a.target='_blank'; a.rel='noopener';
-        document.body.appendChild(a); a.click(); setTimeout(()=>a.remove(),200);
-      }
-    }
-  }
-
-  // Když jsme otevřeni s ?autoxls=1, nejprve aplikuj přenesené filtry a teprve pak exportuj
-  document.addEventListener('DOMContentLoaded', async function(){
-    if (qs.get('autoxls') === '1'){
-      await applyFiltersFromQuery();
-      // export spustí existující funkce z v7
-      if (typeof window.downloadXlsxNow === 'function') {
-        setTimeout(()=>window.downloadXlsxNow(), 200);
-      } else if (typeof window.handleExcelExport === 'function'){
-        // fallback: simulace kliku pro případ jiné struktury
-        try { window.handleExcelExport(); } catch(e){}
+  // B) Venku s ?autoxls=1 – aplikuj filtry hned po načtení, než se spustí autoexport
+  document.addEventListener('DOMContentLoaded', function(){
+    const p = new URLSearchParams(location.search);
+    if (p.get('autoxls') === '1'){
+      setIfExists('#category',   p.get('cat'));
+      setIfExists('#track',      p.get('trk'));
+      setIfExists('#year',       p.get('yr'));
+      setIfExists('#searchName', p.get('q'));
+      if (typeof window.applyFilters === 'function') {
+        try { window.applyFilters(); } catch(e){}
       }
     }
   });
