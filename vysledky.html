@@ -1839,7 +1839,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // přímé přesměrování na intent (stejné jako u v7)
       window.location.href = intent;
       // pokud FB intent nezobrazí, ukaž stručnou instrukci
-      setTimeout(()=>{ try { if (!document.hidden) alert('Pokud se nic nestalo, otevři prosím menu „…“ a zvol „Otevřít v prohlížeči“.'); } catch(e){} }, 1500);
+      setTimeout(()=>{ try { if (!document.hidden) alert('Pro export do Excelu klikněte OK a poté dejte Pokračovat, případně otevřít stránku v prohlížeči mimo Facebook/Messenger.'); } catch(e){} }, 1500);
       return;
     }
     if (isiOS){
