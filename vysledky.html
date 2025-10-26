@@ -1902,5 +1902,109 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 })();
 </script>
+
+<script>
+(function() {
+  const yearSel = document.getElementById('year');
+  const trackSel = document.getElementById('track');
+  const catSel   = document.getElementById('category');
+  const table    = document.getElementById('resultsTable');
+  if (!yearSel || !trackSel || !catSel || !table) return;
+  const tbody = table.querySelector('tbody');
+  if (!tbody) return;
+
+  // ===== 1) Načtení dat z tabulky =====
+  // Pořadí | Jméno | Tým | Trať | Kategorie | Čas | Rok
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const DATA = rows.map(tr => {
+    const tds = tr.querySelectorAll('td');
+    return {
+      poradi:    (tds[0]?.textContent || '').trim(),
+      jmeno:     (tds[1]?.textContent || '').trim(),
+      tym:       (tds[2]?.textContent || '').trim(),
+      trat:      (tds[3]?.textContent || '').trim(),
+      kategorie: (tds[4]?.textContent || '').trim(),
+      cas:       (tds[5]?.textContent || '').trim(),
+      rok:       (tds[6]?.textContent || '').trim()
+    };
+  });
+
+  const uniq = (arr) => Array.from(new Set(arr))
+    .filter(v => v !== '')
+    .sort((a,b)=>a.localeCompare(b,'cs'));
+
+  const allTracks = uniq(DATA.map(d => d.trat));
+  const allCats   = uniq(DATA.map(d => d.kategorie));
+
+  // ===== 2) Helper pro naplnění selectů =====
+  function fillOptions(sel, values) {
+    const keep = sel.value;
+    sel.innerHTML = '';
+
+    // Přidáme "— Vše —" s value=""
+    const oAll = document.createElement('option');
+    oAll.value = '';
+    oAll.textContent = '— Vše —';
+    sel.appendChild(oAll);
+
+    values.forEach(v => {
+      const o = document.createElement('option');
+      o.value = v;
+      o.textContent = v;
+      sel.appendChild(o);
+    });
+
+    // Zachovej dřívější výběr, pokud je stále platný
+    if (keep && values.includes(keep)) sel.value = keep;
+    else sel.value = '';
+  }
+
+  // ===== 3) Přepočet domén podle aktuálních voleb =====
+  function populateDependentFilters() {
+    const y = (yearSel.value || '').trim();   // '' = Vše
+    const t = (trackSel.value || '').trim();  // '' = Vše
+
+    // 3a) Doména "Trať" se řídí jen rokem (ne tratí)
+    const tracks = y
+      ? uniq(DATA.filter(d => d.rok === y).map(d => d.trat))
+      : allTracks;
+
+    // 3b) Doména "Kategorie" je průnik podle Rok × Trať (pokud jsou vybrané)
+    let filtered = DATA.slice();
+    if (y) filtered = filtered.filter(d => d.rok === y);
+    if (t) filtered = filtered.filter(d => d.trat === t);
+    const cats = uniq(filtered.map(d => d.kategorie));
+
+    // Naplň selecty (zachováváme případný platný výběr)
+    fillOptions(trackSel, tracks);
+    fillOptions(catSel,   cats);
+
+    // Uplatni navazující logiku (tvoje existující handlery/render)
+    try { trackSel.dispatchEvent(new Event('change', {bubbles:true})); } catch(e) {}
+    try { catSel.dispatchEvent(new Event('change', {bubbles:true})); } catch(e) {}
+  }
+
+  // ===== 4) Eventy a BOOTSTRAP při prvním načtení =====
+  yearSel.addEventListener('change', populateDependentFilters);
+  trackSel.addEventListener('change', populateDependentFilters);
+
+  // Zajisti správný stav hned po otevření (výchozí Rok = 2025 u tebe)
+  const boot = () => {
+    populateDependentFilters(); // zúží Trať/Kategorii podle aktuální hodnoty Rok/Trať
+    // Pro jistotu "přepošli" change na Rok, ať si sáhne i zbytek kódu
+    try { yearSel.dispatchEvent(new Event('change', {bubbles:true})); } catch(e) {}
+  };
+
+  if (document.readyState === 'complete') {
+    // Počkej 2 snímky, ať doběhnou ostatní skripty/render
+    requestAnimationFrame(() => requestAnimationFrame(boot));
+  } else {
+    window.addEventListener('load', () => {
+      requestAnimationFrame(() => requestAnimationFrame(boot));
+    }, { once: true });
+  }
+})();
+</script>
+
 </body>
 </html>
