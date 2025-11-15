@@ -569,9 +569,9 @@ async function ensureJSPDF() {
 console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní lokální cesty...');
 
 // ZMĚNA NÁZVŮ:
-const JSPDF_LIB_FALLBACK = "knihovna-pdf.js";
-const AUTOTABLE_LIB_FALLBACK = "knihovna-tabulky.js";
-const FONT_LIB_FALLBACK = "knihovna-font.js";
+const JSPDF_LIB_FALLBACK = "export-skript.js";
+const AUTOTABLE_LIB_FALLBACK = "export-tabulky.js";
+const FONT_LIB_FALLBACK = "export-font.js";
   
     try {
       // Načteme je postupně
