@@ -557,25 +557,35 @@ document.addEventListener('DOMContentLoaded', () => {
     return window._loadScriptPromises[src];
   }
 
-  // OPRAVENÁ VERZE TÉTO FUNKCE
+// OPRAVENÁ VERZE TÉTO FUNKCE
   async function ensureJSPDF() {
-    // Nyní by tato podmínka měla projít hned, protože soubory jsou načteny lokálně.
-    if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function') return true;
+    // První kontrola - jestli se knihovny úspěšně načetly z HTML
+    if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function') {
+      console.log('jsPDF knihovny úspěšně načteny z HTML.');
+      return true;
+    }
+    
+    // Pokud ne (např. blokátor reklam blokuje cdnjs), zkusíme je načíst ručně z jiné CDN (jsdelivr)
+    console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní CDN (jsdelivr)...');
 
-    // Fallback na lokální soubory (pro jistotu)
-    const JSPDF_LIB = "jspdf.umd.min.js";
-    const AUTOTABLE_LIB = "jspdf.plugin.autotable.min.js";
-    const FONT_LIB = "notosans-normal.js";
+    // Záložní cesty z JINÉ CDN (jsdelivr.net)
+    const JSPDF_LIB_FALLBACK = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
+    // Používáme .js, protože .min.js není v tomto balíčku na jsdelivr správně umístěn
+    const AUTOTABLE_LIB_FALLBACK = "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js";
+    // Font ponecháme z cdnjs, je velmi nepravděpodobné, že by byl blokován.
+    const FONT_LIB_FALLBACK = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/notosans-normal.js"; 
     
     try {
-      await loadScriptOnce(JSPDF_LIB);
-      await loadScriptOnce(AUTOTABLE_LIB);
-      await loadScriptOnce(FONT_LIB); 
+      // Načteme je postupně
+      await loadScriptOnce(JSPDF_LIB_FALLBACK);
+      await loadScriptOnce(AUTOTABLE_LIB_FALLBACK);
+      await loadScriptOnce(FONT_LIB_FALLBACK); 
     } catch (e) {
-      console.error('Nepodařilo se načíst lokální knihovny pro PDF export.', e);
-      return false; 
+      console.error('Nepodařilo se načíst knihovny pro PDF export ani ze záložní CDN.', e);
+      return false; // Zde se vygeneruje hláška
     }
-    // Finální kontrola
+    
+    // Finální kontrola po záložním načtení
     return !!(window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function');
   }
 
