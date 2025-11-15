@@ -569,16 +569,18 @@ async function ensureJSPDF() {
 console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní lokální cesty...');
 
 // ZMĚNA NÁZVŮ:
+// ...
+// ZMĚNA NÁZVŮ:
+const FONT_DATA_FALLBACK = "data-fontu.js"; // Nový název
 const JSPDF_LIB_FALLBACK = "export-skript.js";
 const AUTOTABLE_LIB_FALLBACK = "export-tabulky.js";
-const FONT_LIB_FALLBACK = "export-font.js";
-  
-    try {
-      // Načteme je postupně
-      await loadScriptOnce(JSPDF_LIB_FALLBACK);
-      await loadScriptOnce(AUTOTABLE_LIB_FALLBACK);
-      await loadScriptOnce(FONT_LIB_FALLBACK); 
-    } catch (e) {
+
+try {
+  // Načteme data jako první
+  await loadScriptOnce(FONT_DATA_FALLBACK);
+  await loadScriptOnce(JSPDF_LIB_FALLBACK);
+  await loadScriptOnce(AUTOTABLE_LIB_FALLBACK);
+} catch (e) {
       console.error('Nepodařilo se načíst lokální knihovny pro PDF.', e);
       return false; // Zde se vygeneruje hláška
     }
@@ -640,37 +642,48 @@ const FONT_LIB_FALLBACK = "export-font.js";
          return;
       }
 
-      // 3. Vytvoření PDF
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
+// 3. Vytvoření PDF
 
-      // Font je nyní načten lokálně, takže 'Noto Sans' bude fungovat
-      const head = [data[0]]; // Hlavička je první řádek dat
-      const body = data.slice(1); // Tělo jsou všechny ostatní řádky
+// OPRAVA A: Konstruktor je přímo v window.jspdf (pro jsPDF v2+)
+const doc = new window.jspdf(); 
 
-      doc.autoTable({
-        head: head,
-        body: body,
-        styles: {
-          font: 'Noto Sans', // TOTO JE KLÍČOVÉ PRO DIATRITIKU
-          fontStyle: 'normal',
-          fontSize: 7, 
-          cellPadding: 1.5,
-        },
-        headStyles: {
-          fillColor: [224, 224, 224], 
-          textColor: [0, 0, 0],
-          fontSize: 7,
-        },
-        alternateRowStyles: {
-          fillColor: [242, 242, 242],
-        },
-        tableWidth: 'auto',
-        margin: { left: 5, right: 5, top: 10, bottom: 10 },
-      });
-      
-      // 4. Uložení souboru
-      doc.save(`${baseName}.pdf`);
+// OPRAVA B: Manuální přidání fontu (verze pro jsPDF v2+)
+// Musíme to udělat dříve, než se použije v autoTable
+if (window.NOTO_SANS_BASE64) {
+    doc.addFileToVFS('NotoSans-Regular-normal.ttf', window.NOTO_SANS_BASE64);
+    doc.addFont('NotoSans-Regular-normal.ttf', 'Noto Sans', 'normal');
+    doc.setFont('Noto Sans', 'normal'); // Důležité: nastavíme font
+} else {
+    console.warn('Font data (NOTO_SANS_BASE64) nebyla nalezena!');
+}
+
+// Původní kód pro autoTable (už je v pořádku)
+const head = [data[0]]; 
+const body = data.slice(1);
+
+doc.autoTable({
+  head: head,
+  body: body,
+  styles: {
+    font: 'Noto Sans', // Toto teď bude fungovat
+    fontStyle: 'normal',
+    fontSize: 7, 
+    cellPadding: 1.5,
+  },
+  headStyles: {
+    fillColor: [224, 224, 224], 
+    textColor: [0, 0, 0],
+    fontSize: 7,
+  },
+  alternateRowStyles: {
+    fillColor: [242, 242, 242],
+  },
+  tableWidth: 'auto',
+  margin: { left: 5, right: 5, top: 10, bottom: 10 },
+});
+
+// 4. Uložení souboru (tento řádek je až za autoTable)
+doc.save(`${baseName}.pdf`);
 
     } catch (e) {
       console.error('Chyba při exportu PDF:', e);
