@@ -560,7 +560,7 @@ async function ensureXLSX() {
 
 async function ensureJSPDF() {
     // 1. Kontrola, zda se načetlo z HTML
-    if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function') {
+    if (window.jspdf && window.jspdf.jsPDF && ((window.jspdf.jsPDF.API && typeof window.jspdf.jsPDF.API.autoTable === 'function') || (window.jspdf.jsPDF.prototype && typeof window.jspdf.jsPDF.prototype.autoTable === 'function'))) {
       console.log('jsPDF knihovny úspěšně načteny z HTML.');
       return true;
     }
@@ -645,7 +645,7 @@ try {
 // 3. Vytvoření PDF
 
 // OPRAVA A: Konstruktor je přímo v window.jspdf (pro jsPDF v2+)
-const doc = new window.jspdf(); 
+const doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' }); 
 
 // OPRAVA B: Manuální přidání fontu (verze pro jsPDF v2+)
 // Musíme to udělat dříve, než se použije v autoTable
@@ -671,6 +671,7 @@ doc.autoTable({
     cellPadding: 1.5,
   },
   headStyles: {
+    font: 'Noto Sans',
     fillColor: [224, 224, 224], 
     textColor: [0, 0, 0],
     fontSize: 7,
