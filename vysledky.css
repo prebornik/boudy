@@ -1,0 +1,190 @@
+/* Blok 1: Základní tabulka */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+th {
+  background-color: #e0e0e0;
+  color: black;
+  font-weight: bold;
+  padding: 8px;
+  text-align: center !important;
+  vertical-align: middle;
+}
+td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+tr:hover {
+  background-color: #d1e0ff;
+}
+td:nth-child(1), td:nth-child(5), td:nth-child(6), td:nth-child(7) {
+  text-align: center;
+}
+td:nth-child(2), td:nth-child(3), td:nth-child(4) {
+  text-align: left;
+}
+
+/* Blok 2: Layout, filtry, tlačítka */
+body {
+  font-family: Arial, sans-serif;
+  margin: 20px;
+  text-align: center;
+}
+table {
+  border-collapse: collapse;
+  margin: auto;
+  width: auto;
+}
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  text-align: left;
+  white-space: nowrap;
+}
+th {
+  background-color: #f2f2f2;
+}
+#filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+#filters label {
+  margin-right: 5px;
+}
+
+/* Flex skupiny pro filtry */
+#filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; align-items: center; }
+#filters .filter-group { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Na mobilech dej rok na druhý řádek */
+@media (max-width: 768px){
+  #filters .filter-year { flex-basis: 100%; }
+}
+#filters select, #searchName {
+  padding: 5px;
+  min-width: 120px;
+}
+button {
+  margin: 5px;
+  padding: 6px 12px;
+}
+#scrollTopBtn {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px 15px;
+  font-size: 16px;
+}
+
+/* Blok 3: Tlačítko Home */
+.btn-home {
+  display: inline-block;
+  padding: 8px 14px;
+  background-color: rgb(35, 159, 97);
+  color: rgb(248, 234, 125);
+  text-decoration: none;
+  border-radius: 4px;
+  font-weight: bold;
+}
+.btn-home:hover { background-color: rgb(21, 130, 65); }
+.top-actions { margin: 8px 0 12px; text-align: left; }
+@media (max-width: 768px) {
+  .top-actions { margin: 6px 0 10px; }
+  .btn-home { width: auto; }
+}
+
+/* Blok 4: Mobilní zobrazení tabulky */
+/* (Blok 5 byl duplicitní k tomuto a byl odstraněn) */
+@media (min-width: 769px) { .only-mobile { display: none !important; } }
+@media (max-width: 768px) { .only-mobile { display: inline-block; } }
+@media (max-width: 768px) {
+  #resultsTable th:nth-child(3),
+  #resultsTable td:nth-child(3),
+  #resultsTable th:nth-child(5),
+  #resultsTable td:nth-child(5) { display: none; }
+  #resultsTable td:nth-child(2) { white-space: normal; }
+  #resultsTable { min-width: auto; }
+}
+@media (max-width: 768px) {
+  body.show-all-cols #resultsTable th,
+  body.show-all-cols #resultsTable td { display: table-cell !important; }
+  body.show-all-cols #resultsTable { min-width: 680px; }
+}
+
+/* Blok 6: Sticky hlavička tabulky */
+#vysledky th, #resultsTable th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #e0e0e0;
+}
+@media (max-width: 800px) {
+  #vysledky th, #resultsTable th {
+    font-size: 13px;
+    padding: 6px 4px;
+  }
+}
+
+/* Blok 7: Sticky hlavička pro mobilní "show-all" */
+@media (max-width: 768px) {
+  /* Aktivní jen v režimu "Zobrazit všechny sloupce" */
+  body.show-all-cols #resultsWrapper {
+    max-height: 75vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  body.show-all-cols #resultsTable { border-collapse: separate; border-spacing: 0; }
+  body.show-all-cols #resultsTable thead th {
+    position: sticky; top: 0; z-index: 5; background: #e0e0e0;
+  }
+}
+
+/* Blok 8: Centrovaní filtru "Rok" na mobilu */
+@media (max-width: 768px){
+  /* celý blok Rok: + select dej na samostatný řádek a vystřeď */
+  #filters .filter-year {
+    flex-basis: 100%;
+    display: flex;
+    justify-content: center;
+  }
+  #filters .filter-year label { margin-right: 6px; }
+}
+
+/* Blok 9: Back-to-top pozice */
+:root { --btt-gap: 4px; }
+#backToTop {
+  right: max(4px, env(safe-area-inset-right));
+  bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+/* Blok 10: Back-to-top override (čtverec) */
+#scrollTopBtn, #backToTop {
+  bottom: 0 !important;
+  right: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  width: 48px !important;
+  height: 48px !important;
+  line-height: 48px !important;
+  padding: 0 !important;
+  text-align: center !important;
+  z-index: 9999 !important;
+}
+@media (max-width: 768px) {
+  #scrollTopBtn, #backToTop {
+    width: 29px !important;
+    height: 29px !important;
+    line-height: 36px !important;
+    font-size: 14px !important;
+  }
+}
