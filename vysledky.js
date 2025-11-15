@@ -572,10 +572,7 @@ console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní lokáln
 const JSPDF_LIB_FALLBACK = "knihovna-pdf.js";
 const AUTOTABLE_LIB_FALLBACK = "knihovna-tabulky.js";
 const FONT_LIB_FALLBACK = "knihovna-font.js";
-
-try {
-// ... (zbytek kódu ponechte) ...
-    
+  
     try {
       // Načteme je postupně
       await loadScriptOnce(JSPDF_LIB_FALLBACK);
