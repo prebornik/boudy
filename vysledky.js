@@ -415,11 +415,12 @@ document.addEventListener('DOMContentLoaded', () => {
     return window._loadScriptPromises[src];
   }
 
-  async function ensureXLSX() {
-    // Nyní by tato podmínka měla projít hned, protože soubor je načten lokálně.
+async function ensureXLSX() {
+    // 1. Kontrola, zda se načetlo z HTML
     if (window.XLSX && XLSX.utils && XLSX.writeFile) return true;
     
-    // Fallback zůstává, i když by se neměl spustit
+    // 2. Záloha: načtení lokální cesty
+    console.warn('Nepodařilo se načíst XLSX z HTML, zkouším záložní lokální cestu...');
     const SHEETJS_PRIMARY = "xlsx.full.min.js"; // Lokální cesta
     try { await loadScriptOnce(SHEETJS_PRIMARY); } catch (_) {}
     return !!(window.XLSX && XLSX.utils && XLSX.writeFile);
@@ -557,23 +558,18 @@ document.addEventListener('DOMContentLoaded', () => {
     return window._loadScriptPromises[src];
   }
 
-// OPRAVENÁ VERZE TÉTO FUNKCE
-  async function ensureJSPDF() {
-    // První kontrola - jestli se knihovny úspěšně načetly z HTML
+async function ensureJSPDF() {
+    // 1. Kontrola, zda se načetlo z HTML
     if (window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function') {
       console.log('jsPDF knihovny úspěšně načteny z HTML.');
       return true;
     }
     
-    // Pokud ne (např. blokátor reklam blokuje cdnjs), zkusíme je načíst ručně z jiné CDN (jsdelivr)
-    console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní CDN (jsdelivr)...');
+    // 2. Záloha: načtení lokálních cest
+    console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní lokální cesty...');
 
-    // Záložní cesty z JINÉ CDN (jsdelivr.net)
-    const JSPDF_LIB_FALLBACK = "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js";
-    // Používáme .js, protože .min.js není v tomto balíčku na jsdelivr správně umístěn
-    const AUTOTABLE_LIB_FALLBACK = "https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js";
-    // Font ponecháme z cdnjs, je velmi nepravděpodobné, že by byl blokován.
-    const FONT_LIB_FALLBACK = "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/notosans-normal.js"; 
+    const JSPDF_LIB_FALLBACK = "jspdf.umd.min.js";
+    const AUTOTABLE_LIB_FALLBACK = "jspdf.plugin.autotable.min.js";
     
     try {
       // Načteme je postupně
@@ -581,11 +577,11 @@ document.addEventListener('DOMContentLoaded', () => {
       await loadScriptOnce(AUTOTABLE_LIB_FALLBACK);
       await loadScriptOnce(FONT_LIB_FALLBACK); 
     } catch (e) {
-      console.error('Nepodařilo se načíst knihovny pro PDF export ani ze záložní CDN.', e);
+      console.error('Nepodařilo se načíst lokální knihovny pro PDF.', e);
       return false; // Zde se vygeneruje hláška
     }
     
-    // Finální kontrola po záložním načtení
+    // Finální kontrola
     return !!(window.jspdf && window.jspdf.jsPDF && typeof window.jspdf.jsPDF.prototype.autoTable === 'function');
   }
 
