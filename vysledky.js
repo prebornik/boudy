@@ -566,11 +566,15 @@ async function ensureJSPDF() {
     }
     
     // 2. Záloha: načtení lokálních cest
-    console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní lokální cesty...');
+console.warn('Nepodařilo se načíst jsPDF z HTML, zkouším záložní lokální cesty...');
 
-    const JSPDF_LIB_FALLBACK = "jspdf.umd.min.js";
-    const AUTOTABLE_LIB_FALLBACK = "jspdf.plugin.autotable.min.js";
-    const FONT_LIB_FALLBACK = "noto-sans-normal.js";
+// ZMĚNA NÁZVŮ:
+const JSPDF_LIB_FALLBACK = "knihovna-pdf.js";
+const AUTOTABLE_LIB_FALLBACK = "knihovna-tabulky.js";
+const FONT_LIB_FALLBACK = "knihovna-font.js";
+
+try {
+// ... (zbytek kódu ponechte) ...
     
     try {
       // Načteme je postupně
