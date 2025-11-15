@@ -570,6 +570,7 @@ async function ensureJSPDF() {
 
     const JSPDF_LIB_FALLBACK = "jspdf.umd.min.js";
     const AUTOTABLE_LIB_FALLBACK = "jspdf.plugin.autotable.min.js";
+    const FONT_LIB_FALLBACK = "noto-sans-normal.js";
     
     try {
       // Načteme je postupně
